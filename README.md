@@ -64,4 +64,4 @@ npm start
 
 ---
 
-Made by [kunalkcube](https://github.com/kunalkcube)
+Built by [kunalkcube](https://github.com/kunalkcube)
