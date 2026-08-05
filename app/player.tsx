@@ -149,7 +149,8 @@ export default function PlayerScreen() {
         mediaPlaybackRequiresUserAction={false}
         injectedJavaScript={hideAdsJS}
         onShouldStartLoadWithRequest={(request) => {
-          const isMainPlayer = request.url.includes("vidsrc.to") || 
+          const isMainPlayer = request.url.includes("vidsrc.to") ||
+                               request.url.includes("vidsrc.sbs") ||
                                request.url.includes("videasy.net") ||
                                request.url.includes(allowedDomain);
           

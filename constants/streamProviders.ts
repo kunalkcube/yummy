@@ -143,6 +143,19 @@ export const STREAM_PROVIDERS: StreamProvider[] = [
     },
   },
   {
+    id: 'vidsrc-sbs',
+    name: 'VidSrc.sbs',
+    displayName: 'Tiger',
+    baseUrl: 'https://vidsrc.sbs',
+    constructUrl: ({ type, id, season, episode }) => {
+      if (type === 'movie') {
+        return `https://vidsrc.sbs/embed/movie/${id}`;
+      } else {
+        return `https://vidsrc.sbs/embed/tv/${id}/${season}/${episode}`;
+      }
+    },
+  },
+  {
     id: 'custom',
     name: 'Custom URL',
     displayName: 'Custom',
