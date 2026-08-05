@@ -6,10 +6,10 @@ import { AlertCircle, X } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -227,45 +227,49 @@ export default function IptvPlayerScreen() {
   }
 
   return (
-    <TouchableWithoutFeedback onPress={showControls}>
-      <View style={styles.container}>
-        <WebView
-          source={{ html: playerHtml, baseUrl: streamOrigin }}
-          style={styles.webview}
-          originWhitelist={['http://*', 'https://*', 'about:*', 'blob:*', 'data:*']}
-          javaScriptEnabled
-          domStorageEnabled
-          allowsFullscreenVideo
-          mediaPlaybackRequiresUserAction={false}
-          onError={() => setHasError(true)}
-          onMessage={handleMessage}
+    <View style={styles.container}>
+      <WebView
+        source={{ html: playerHtml, baseUrl: streamOrigin }}
+        style={styles.webview}
+        originWhitelist={['http://*', 'https://*', 'about:*', 'blob:*', 'data:*']}
+        javaScriptEnabled
+        domStorageEnabled
+        allowsFullscreenVideo
+        mediaPlaybackRequiresUserAction={false}
+        onError={() => setHasError(true)}
+        onMessage={handleMessage}
+      />
+      {controlsVisible ? (
+        <View style={[styles.header, headerPadding]} pointerEvents="box-none">
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => router.back()}
+            activeOpacity={0.85}
+            accessibilityLabel="Close player"
+          >
+            <X size={20} color="#fff" />
+          </TouchableOpacity>
+          <View style={styles.headerInfo} pointerEvents="none">
+            <Text style={styles.channelName} numberOfLines={1}>
+              {channelName}
+            </Text>
+            <Text style={styles.liveLabel}>Live</Text>
+          </View>
+        </View>
+      ) : (
+        <Pressable
+          style={[styles.revealStrip, { height: Math.max(insets.top, 12) + 36 }]}
+          onPress={showControls}
+          accessibilityLabel="Show player controls"
         />
-        {controlsVisible && (
-          <View style={[styles.header, headerPadding]} pointerEvents="box-none">
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => router.back()}
-              activeOpacity={0.85}
-              accessibilityLabel="Close player"
-            >
-              <X size={20} color="#fff" />
-            </TouchableOpacity>
-            <View style={styles.headerInfo}>
-              <Text style={styles.channelName} numberOfLines={1}>
-                {channelName}
-              </Text>
-              <Text style={styles.liveLabel}>Live</Text>
-            </View>
-          </View>
-        )}
-        {!hasLoaded && (
-          <View style={styles.loadingOverlay} pointerEvents="none">
-            <ActivityIndicator size="large" color={Colors.accent} />
-            <Text style={styles.loadingText}>Loading channel...</Text>
-          </View>
-        )}
-      </View>
-    </TouchableWithoutFeedback>
+      )}
+      {!hasLoaded && (
+        <View style={styles.loadingOverlay} pointerEvents="none">
+          <ActivityIndicator size="large" color={Colors.accent} />
+          <Text style={styles.loadingText}>Loading channel...</Text>
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -288,6 +292,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.72)',
     paddingBottom: 12,
     gap: 10,
+    zIndex: 10,
+  },
+  revealStrip: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     zIndex: 10,
   },
   closeButton: {

@@ -1,36 +1,19 @@
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
+import {
+  PLAYER_AD_BLOCK_BEFORE_JS,
+  PLAYER_AD_BLOCK_JS,
+  shouldAllowPlayerRequest,
+} from '@/constants/playerAdBlock';
 import { getStreamProvider } from '@/constants/streamProviders';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { X } from 'lucide-react-native';
-import { useEffect, useRef, useState } from 'react';
-import {
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
-} from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
-
-const hideAdsJS = `
-  (function() {
-    const css = 'iframe[src*="ads"], .ad-container, #pop-overlay { display: none !important; }';
-    const head = document.head || document.getElementsByTagName('head')[0];
-    const style = document.createElement('style');
-    style.type = 'text/css';
-    style.appendChild(document.createTextNode(css));
-    head.appendChild(style);
-
-    setInterval(() => {
-      const overlays = document.querySelectorAll('div[style*="z-index: 9999"]');
-      overlays.forEach(el => el.remove());
-    }, 1000);
-  })();
-`;
 
 export default function PlayerScreen() {
   const params = useLocalSearchParams<{
@@ -92,83 +75,79 @@ export default function PlayerScreen() {
     router.back();
   };
 
+  const onShouldStartLoadWithRequest = useCallback((request: { url: string }) => {
+    return shouldAllowPlayerRequest(request.url || '');
+  }, []);
+
   const streamLink = constructStreamUrl();
-
-  const getAllowedDomains = () => {
-    try {
-      const url = new URL(streamUrl);
-      return url.hostname;
-    } catch {
-      return '';
-    }
-  };
-
-  const allowedDomain = getAllowedDomains();
   const metaLabel =
     type === 'tv' ? `S${season}  ·  E${episode}` : type === 'movie' ? 'Movie' : '';
 
+  const headerPadding = {
+    paddingTop: Math.max(insets.top, 10),
+    paddingLeft: Math.max(insets.left, 12),
+    paddingRight: Math.max(insets.right, 12),
+  };
+
   return (
-    <TouchableWithoutFeedback onPress={showControls}>
-      <View style={styles.container}>
-        {controlsVisible && (
-          <View
-            style={[
-              styles.header,
-              {
-                paddingTop: Math.max(insets.top, 10),
-                paddingLeft: Math.max(insets.left, 12),
-                paddingRight: Math.max(insets.right, 12),
-              },
-            ]}
-            pointerEvents="box-none"
+    <View style={styles.container}>
+      <WebView
+        source={{ uri: streamLink }}
+        style={styles.webview}
+        originWhitelist={['http://*', 'https://*', 'about:*', 'blob:*', 'data:*']}
+        javaScriptEnabled
+        domStorageEnabled
+        setSupportMultipleWindows={false}
+        allowsFullscreenVideo
+        mediaPlaybackRequiresUserAction={false}
+        nestedScrollEnabled
+        injectedJavaScriptBeforeContentLoaded={PLAYER_AD_BLOCK_BEFORE_JS}
+        injectedJavaScript={PLAYER_AD_BLOCK_JS}
+        injectedJavaScriptForMainFrameOnly={false}
+        onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
+        onOpenWindow={() => {
+          // Pop-up ads — discard; do not open a second window
+        }}
+      />
+
+      {controlsVisible ? (
+        <View style={[styles.header, headerPadding]} pointerEvents="box-none">
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={handleClose}
+            activeOpacity={0.85}
+            accessibilityLabel="Close player"
           >
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={handleClose}
-              activeOpacity={0.85}
-              accessibilityLabel="Close player"
-            >
-              <X size={20} color="#fff" />
-            </TouchableOpacity>
-            <View style={styles.headerInfo}>
-              <Text style={styles.title} numberOfLines={1}>
-                {title}
+            <X size={20} color="#fff" />
+          </TouchableOpacity>
+          <View style={styles.headerInfo} pointerEvents="none">
+            <Text style={styles.title} numberOfLines={1}>
+              {title}
+            </Text>
+            {metaLabel ? (
+              <Text style={styles.subtitle} numberOfLines={1}>
+                {metaLabel}
               </Text>
-              {metaLabel ? (
-                <Text style={styles.subtitle} numberOfLines={1}>
-                  {metaLabel}
-                </Text>
-              ) : null}
-            </View>
+            ) : null}
           </View>
-        )}
-
-        <WebView
-          source={{ uri: streamLink }}
-          style={styles.webview}
-          javaScriptEnabled
-          domStorageEnabled
-          setSupportMultipleWindows={false}
-          allowsFullscreenVideo
-          mediaPlaybackRequiresUserAction={false}
-          injectedJavaScript={hideAdsJS}
-          onShouldStartLoadWithRequest={(request) => {
-            const isMainPlayer =
-              request.url.includes('vidsrc.to') ||
-              request.url.includes('vidsrc.sbs') ||
-              request.url.includes('videasy.net') ||
-              request.url.includes(allowedDomain);
-
-            return isMainPlayer;
-          }}
+        </View>
+      ) : (
+        <Pressable
+          style={[styles.revealStrip, { height: Math.max(insets.top, 12) + 36 }]}
+          onPress={showControls}
+          accessibilityLabel="Show player controls"
         />
-      </View>
-    </TouchableWithoutFeedback>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  webview: {
     flex: 1,
     backgroundColor: '#000',
   },
@@ -183,6 +162,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.72)',
     zIndex: 10,
     gap: 10,
+  },
+  revealStrip: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
   },
   closeButton: {
     width: 40,
@@ -208,9 +194,5 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     marginTop: 2,
-  },
-  webview: {
-    flex: 1,
-    backgroundColor: '#000',
   },
 });
