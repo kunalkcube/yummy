@@ -20,7 +20,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.kunalkongkan.yummy"
+      "package": "com.kunalkongkan.yummy",
+      "versionCode": 2
     },
     "web": {
       "output": "static",
