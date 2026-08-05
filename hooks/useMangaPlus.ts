@@ -132,12 +132,10 @@ class MangaPlusManager {
     this.isInitializing = true;
 
     try {
-      console.log('🔄 Starting MangaPlus device initialization...');
       let storedDeviceId = await AsyncStorage.getItem(DEVICE_ID_KEY);
       let storedDeviceSecret = await AsyncStorage.getItem(DEVICE_SECRET_KEY);
 
       if (!storedDeviceId || !storedDeviceSecret) {
-        console.log('📝 No stored device found, registering new device...');
         const newDeviceId = `device-${Date.now()}`;
         const response = await axios.post(`${MANGAPLUS_BASE_URL}/register`, {
           deviceId: newDeviceId,
@@ -148,30 +146,19 @@ class MangaPlusManager {
 
         if (response.data.registerationData?.deviceSecret) {
           const deviceSecret = response.data.registerationData.deviceSecret;
-
           await AsyncStorage.setItem(DEVICE_ID_KEY, newDeviceId);
           await AsyncStorage.setItem(DEVICE_SECRET_KEY, deviceSecret);
-
           storedDeviceId = newDeviceId;
           storedDeviceSecret = deviceSecret;
-
-          console.log('✅ MangaPlus device registered:', newDeviceId);
-        } else {
-          console.error('❌ Registration response missing deviceSecret');
         }
-      } else {
-        console.log('✅ Using stored device:', storedDeviceId);
       }
 
       if (storedDeviceId && storedDeviceSecret) {
         this.deviceId = storedDeviceId;
         this.deviceSecret = storedDeviceSecret;
-        console.log('✅ MangaPlus initialized with device:', storedDeviceId);
-      } else {
-        console.error('❌ Failed to get device credentials');
       }
-    } catch (error) {
-      console.error('❌ Error initializing MangaPlus device:', error);
+    } catch {
+      // Registration/storage failures leave the client uninitialized
     } finally {
       this.isInitialized = true;
       this.isInitializing = false;
@@ -217,7 +204,6 @@ export const useMangaPlus = () => {
     const currentDeviceId = manager.getDeviceId();
     
     if (!currentDeviceId) {
-      console.log('Device not initialized');
       return [];
     }
 
@@ -228,7 +214,6 @@ export const useMangaPlus = () => {
 
       return response.data.homeViewV3?.groups || [];
     } catch (error: any) {
-      console.error('Error fetching updates:', error.response?.data || error.message);
       return [];
     }
   };
@@ -239,12 +224,10 @@ export const useMangaPlus = () => {
     const currentDeviceId = manager.getDeviceId();
     
     if (!currentDeviceId) {
-      console.log('Device not initialized');
       return [];
     }
 
     try {
-      console.log(`🔍 Searching MangaPlus titles${query ? ` for: "${query}"` : ''}`);
       
       let allTitles: MangaPlusTitleGroup[] = [];
       
@@ -261,7 +244,6 @@ export const useMangaPlus = () => {
         allTitles = response.data.searchView?.allTitlesGroup || [];
       }
       
-      console.log(`📚 Loaded ${allTitles.length} title groups from MangaPlus`);
       
       if (query) {
         const lowerQuery = query.toLowerCase();
@@ -277,13 +259,11 @@ export const useMangaPlus = () => {
             title.author.toLowerCase().includes(lowerQuery)
           );
         });
-        console.log(`✅ Found ${filtered.length} matching groups for "${query}"`);
         return filtered;
       }
 
       return allTitles;
     } catch (error: any) {
-      console.error('❌ Error searching titles:', error.response?.data || error.message);
       return [];
     }
   };
@@ -294,7 +274,6 @@ export const useMangaPlus = () => {
     const currentDeviceId = manager.getDeviceId();
     
     if (!currentDeviceId) {
-      console.log('Device not initialized');
       return null;
     }
 
@@ -305,7 +284,6 @@ export const useMangaPlus = () => {
 
       return response.data.searchView;
     } catch (error: any) {
-      console.error('Error fetching search data:', error.response?.data || error.message);
       return null;
     }
   };
@@ -316,7 +294,6 @@ export const useMangaPlus = () => {
     const currentDeviceId = manager.getDeviceId();
     
     if (!currentDeviceId) {
-      console.log('Device not initialized');
       return [];
     }
 
@@ -327,7 +304,6 @@ export const useMangaPlus = () => {
 
       return response.data.titleRankingViewV2?.rankedTitles || [];
     } catch (error: any) {
-      console.error('Error fetching ranking:', error.response?.data || error.message);
       return [];
     }
   };
@@ -338,7 +314,6 @@ export const useMangaPlus = () => {
     const currentDeviceId = manager.getDeviceId();
     
     if (!currentDeviceId) {
-      console.log('Device not initialized');
       return null;
     }
 
@@ -349,7 +324,6 @@ export const useMangaPlus = () => {
 
       return response.data.titleDetailView;
     } catch (error: any) {
-      console.error('Error fetching title details:', error.response?.data || error.message);
       return null;
     }
   };
@@ -360,7 +334,6 @@ export const useMangaPlus = () => {
     const currentDeviceId = manager.getDeviceId();
     
     if (!currentDeviceId) {
-      console.log('Device not initialized');
       return [];
     }
 
@@ -371,7 +344,6 @@ export const useMangaPlus = () => {
 
       return response.data.favoriteTitlesView?.favoriteTitles || [];
     } catch (error: any) {
-      console.error('Error fetching favorites:', error.response?.data || error.message);
       return [];
     }
   };
@@ -382,7 +354,6 @@ export const useMangaPlus = () => {
     const currentDeviceId = manager.getDeviceId();
     
     if (!currentDeviceId) {
-      console.log('Device not initialized');
       return false;
     }
 
@@ -392,7 +363,6 @@ export const useMangaPlus = () => {
       });
       return true;
     } catch (error: any) {
-      console.error('Error adding favorite:', error.response?.data || error.message);
       return false;
     }
   };
@@ -403,7 +373,6 @@ export const useMangaPlus = () => {
     const currentDeviceId = manager.getDeviceId();
     
     if (!currentDeviceId) {
-      console.log('Device not initialized');
       return false;
     }
 
@@ -413,7 +382,6 @@ export const useMangaPlus = () => {
       });
       return true;
     } catch (error: any) {
-      console.error('Error removing favorite:', error.response?.data || error.message);
       return false;
     }
   };
@@ -424,7 +392,6 @@ export const useMangaPlus = () => {
     const currentDeviceId = manager.getDeviceId();
     
     if (!currentDeviceId) {
-      console.log('Device not initialized');
       return [];
     }
 
@@ -435,7 +402,6 @@ export const useMangaPlus = () => {
 
       return response.data.historyView?.viewHistory || [];
     } catch (error: any) {
-      console.error('Error fetching history:', error.response?.data || error.message);
       return [];
     }
   };
@@ -446,7 +412,6 @@ export const useMangaPlus = () => {
     const currentDeviceId = manager.getDeviceId();
     
     if (!currentDeviceId) {
-      console.log('Device not initialized');
       return [];
     }
 
@@ -457,7 +422,6 @@ export const useMangaPlus = () => {
 
       return response.data.allFreeTitlesView?.freeTitles || [];
     } catch (error: any) {
-      console.error('Error fetching free titles:', error.response?.data || error.message);
       return [];
     }
   };
@@ -468,12 +432,10 @@ export const useMangaPlus = () => {
     const currentDeviceId = manager.getDeviceId();
     
     if (!currentDeviceId) {
-      console.error('❌ fetchChapterPages called without deviceId');
       return [];
     }
 
     try {
-      console.log(`📖 Fetching chapter ${chapterId} with quality: ${quality}`);
       const response = await axios.get(`${MANGAPLUS_BASE_URL}/chapter/${chapterId}`, {
         params: { 
           deviceId: currentDeviceId,
@@ -482,33 +444,25 @@ export const useMangaPlus = () => {
         },
       });
 
-      console.log('📦 Chapter response received');
 
       // Extract page URLs from mangaViewer
       const mangaViewer = response.data.mangaViewer;
       if (!mangaViewer) {
-        console.error('❌ No mangaViewer in response');
-        console.log('Response keys:', Object.keys(response.data));
         return [];
       }
 
       if (!mangaViewer.pages) {
-        console.error('❌ No pages in mangaViewer');
-        console.log('MangaViewer keys:', Object.keys(mangaViewer));
         return [];
       }
 
-      console.log(`📄 Found ${mangaViewer.pages.length} pages in response`);
 
       // Filter out non-image pages and extract URLs
       const pageUrls = mangaViewer.pages
         .filter((page: any) => page.mangaPage && page.mangaPage.imageUrl)
         .map((page: any) => page.mangaPage.imageUrl);
 
-      console.log(`✅ Extracted ${pageUrls.length} image URLs`);
       return pageUrls;
     } catch (error: any) {
-      console.error('❌ Error fetching chapter pages:', error.response?.data || error.message);
       return [];
     }
   };

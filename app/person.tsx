@@ -1,6 +1,10 @@
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
-import { useSettings } from '@/contexts/SettingsContext';
+import {
+  PersonCredit,
+  PersonDetails,
+  useTMDB,
+} from '@/hooks/useTMDB';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AlertCircle, ArrowLeft, User } from 'lucide-react-native';
@@ -25,92 +29,35 @@ const HERO_HEIGHT = height * 0.48;
 const CREDIT_WIDTH = width * 0.3;
 const CREDIT_HEIGHT = CREDIT_WIDTH * 1.55;
 
-interface PersonDetails {
-  id: number;
-  name: string;
-  biography: string;
-  birthday: string;
-  place_of_birth: string;
-  profile_path: string | null;
-  known_for_department: string;
-  also_known_as: string[];
-  gender: number;
-  popularity?: number;
-}
-
-interface MovieCredit {
-  id: number;
-  title?: string;
-  name?: string;
-  poster_path: string | null;
-  character?: string;
-  job?: string;
-  media_type: 'movie' | 'tv';
-}
-
 export default function PersonScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { tmdbApiKey } = useSettings();
+  const { tmdbApiKey, fetchPersonDetails, fetchPersonCredits } = useTMDB();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [person, setPerson] = useState<PersonDetails | null>(null);
-  const [credits, setCredits] = useState<MovieCredit[]>([]);
+  const [credits, setCredits] = useState<PersonCredit[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAllCredits, setShowAllCredits] = useState(false);
 
   useEffect(() => {
     loadPersonDetails();
-  }, [id]);
+  }, [id, tmdbApiKey]);
 
   const loadPersonDetails = async () => {
-    if (!id || !tmdbApiKey) return;
+    if (!id || !tmdbApiKey) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
 
-    await Promise.all([fetchPersonDetails(), fetchPersonCredits()]);
+    const [personData, creditsData] = await Promise.all([
+      fetchPersonDetails(Number(id)),
+      fetchPersonCredits(Number(id)),
+    ]);
+    setPerson(personData);
+    setCredits(creditsData);
 
     setLoading(false);
-  };
-
-  const fetchPersonDetails = async () => {
-    try {
-      const isBearer = tmdbApiKey.startsWith('eyJ') || tmdbApiKey.length > 100;
-      const response = await fetch(
-        `https://api.themoviedb.org/3/person/${id}${!isBearer ? `?api_key=${tmdbApiKey}` : ''}`,
-        isBearer
-          ? {
-              headers: {
-                accept: 'application/json',
-                Authorization: `Bearer ${tmdbApiKey}`,
-              },
-            }
-          : undefined
-      );
-      const data = await response.json();
-      setPerson(data);
-    } catch (error) {
-      console.error('Failed to load person details:', error);
-    }
-  };
-
-  const fetchPersonCredits = async () => {
-    try {
-      const isBearer = tmdbApiKey.startsWith('eyJ') || tmdbApiKey.length > 100;
-      const response = await fetch(
-        `https://api.themoviedb.org/3/person/${id}/combined_credits${!isBearer ? `?api_key=${tmdbApiKey}` : ''}`,
-        isBearer
-          ? {
-              headers: {
-                accept: 'application/json',
-                Authorization: `Bearer ${tmdbApiKey}`,
-              },
-            }
-          : undefined
-      );
-      const data = await response.json();
-      setCredits(data.cast?.slice(0, 20) || []);
-    } catch (error) {
-      console.error('Failed to load person credits:', error);
-    }
   };
 
   const calculateAge = (birthday: string) => {
@@ -124,7 +71,7 @@ export default function PersonScreen() {
     return age;
   };
 
-  const renderCreditItem = ({ item }: { item: MovieCredit }) => (
+  const renderCreditItem = ({ item }: { item: PersonCredit }) => (
     <TouchableOpacity
       style={styles.creditCard}
       onPress={() =>

@@ -39,18 +39,41 @@ export interface Episode {
   runtime: number;
 }
 
-// Helper to determine if the key is a Bearer token or API key
-const isBearerToken = (key: string): boolean => {
-  const isBearer = key.startsWith('eyJ') || key.length > 100;
-  console.log('Auth type check:', isBearer ? 'Bearer Token' : 'API Key', '(length:', key.length + ')');
-  return isBearer;
-};
+export interface CastMember {
+  id: number;
+  name: string;
+  character: string;
+  profile_path: string | null;
+}
 
-// Helper to create axios config with proper auth
-const getAxiosConfig = (tmdbApiKey: string, params?: any) => {
+export interface PersonDetails {
+  id: number;
+  name: string;
+  biography: string;
+  birthday: string;
+  place_of_birth: string;
+  profile_path: string | null;
+  known_for_department: string;
+  also_known_as: string[];
+  gender: number;
+  popularity?: number;
+}
+
+export interface PersonCredit {
+  id: number;
+  title?: string;
+  name?: string;
+  poster_path: string | null;
+  character?: string;
+  job?: string;
+  media_type: 'movie' | 'tv';
+}
+
+const isBearerToken = (key: string): boolean =>
+  key.startsWith('eyJ') || key.length > 100;
+
+const getAxiosConfig = (tmdbApiKey: string, params?: Record<string, unknown>) => {
   if (isBearerToken(tmdbApiKey)) {
-    // Use Bearer token in header
-    console.log('Using Bearer token authentication');
     return {
       headers: {
         accept: 'application/json',
@@ -58,132 +81,193 @@ const getAxiosConfig = (tmdbApiKey: string, params?: any) => {
       },
       params,
     };
-  } else {
-    // Use API key in query params
-    console.log('Using API key authentication');
-    return {
-      params: { ...params, api_key: tmdbApiKey },
-    };
   }
+
+  return {
+    params: { ...params, api_key: tmdbApiKey },
+  };
 };
 
 export const useTMDB = () => {
   const { tmdbApiKey } = useSettings();
 
   const fetchTrending = async (): Promise<Movie[]> => {
-    if (!tmdbApiKey) {
-      console.log('No API key set');
-      return [];
-    }
+    if (!tmdbApiKey) return [];
     try {
-      console.log('=== FETCHING TRENDING ===');
-      console.log('API Key/Token length:', tmdbApiKey.length);
-      console.log('First 20 chars:', tmdbApiKey.substring(0, 20));
-      
-      const config = getAxiosConfig(tmdbApiKey);
-      console.log('Request config:', JSON.stringify(config, null, 2));
-      
-      const url = `${TMDB_BASE_URL}/trending/all/week`;
-      console.log('Request URL:', url);
-      
-      const response = await axios.get(url, config);
-      console.log('✅ Success! Trending results:', response.data.results.length);
-      return response.data.results;
-    } catch (error: any) {
-      console.error('❌ Error fetching trending:');
-      console.error('Status:', error.response?.status);
-      console.error('Status Text:', error.response?.statusText);
-      console.error('Error data:', JSON.stringify(error.response?.data, null, 2));
-      console.error('Error message:', error.message);
+      const response = await axios.get(
+        `${TMDB_BASE_URL}/trending/all/week`,
+        getAxiosConfig(tmdbApiKey)
+      );
+      return response.data.results || [];
+    } catch {
       return [];
     }
   };
 
-  const fetchPopular = async (type: 'movie' | 'tv' = 'movie', providerId?: number): Promise<Movie[]> => {
-    if (!tmdbApiKey) {
-      console.log('No API key set');
-      return [];
-    }
+  const fetchPopular = async (
+    type: 'movie' | 'tv' = 'movie',
+    providerId?: number
+  ): Promise<Movie[]> => {
+    if (!tmdbApiKey) return [];
     try {
-      console.log(`Fetching popular ${type}${providerId ? ` for provider ${providerId}` : ''}...`);
-      
       let endpoint = `${TMDB_BASE_URL}/${type}/popular`;
-      const params: any = {};
-      
-      // If provider is specified, use discover endpoint instead
+      const params: Record<string, unknown> = {};
+
       if (providerId) {
         endpoint = `${TMDB_BASE_URL}/discover/${type}`;
         params.with_watch_providers = providerId;
-        params.watch_region = 'IN'; // Changed to India for Indian streaming providers
+        params.watch_region = 'IN';
         params.sort_by = 'popularity.desc';
-        // Include all monetization types to get more results
         params.with_watch_monetization_types = 'flatrate|free|ads|rent|buy';
       }
-      
-      const config = getAxiosConfig(tmdbApiKey, params);
-      const response = await axios.get(endpoint, config);
-      console.log(`Popular ${type} results:`, response.data.results.length);
-      return response.data.results;
-    } catch (error: any) {
-      console.error(`Error fetching popular ${type}:`, error.response?.data || error.message);
+
+      const response = await axios.get(endpoint, getAxiosConfig(tmdbApiKey, params));
+      return response.data.results || [];
+    } catch {
+      return [];
+    }
+  };
+
+  const fetchTopRated = async (type: 'movie' | 'tv' = 'movie'): Promise<Movie[]> => {
+    if (!tmdbApiKey) return [];
+    try {
+      const response = await axios.get(
+        `${TMDB_BASE_URL}/${type}/top_rated`,
+        getAxiosConfig(tmdbApiKey)
+      );
+      return response.data.results || [];
+    } catch {
+      return [];
+    }
+  };
+
+  const fetchUpcoming = async (): Promise<Movie[]> => {
+    if (!tmdbApiKey) return [];
+    try {
+      const response = await axios.get(
+        `${TMDB_BASE_URL}/movie/upcoming`,
+        getAxiosConfig(tmdbApiKey)
+      );
+      return response.data.results || [];
+    } catch {
       return [];
     }
   };
 
   const searchContent = async (query: string): Promise<Movie[]> => {
-    if (!tmdbApiKey) {
-      console.log('No API key set');
-      return [];
-    }
+    if (!tmdbApiKey) return [];
     try {
-      console.log('Searching for:', query);
-      const config = getAxiosConfig(tmdbApiKey, { query });
-      const response = await axios.get(`${TMDB_BASE_URL}/search/multi`, config);
-      const filtered = response.data.results.filter((item: Movie) => 
-        item.media_type === 'movie' || item.media_type === 'tv'
+      const response = await axios.get(
+        `${TMDB_BASE_URL}/search/multi`,
+        getAxiosConfig(tmdbApiKey, { query })
       );
-      console.log('Search results:', filtered.length);
-      return filtered;
-    } catch (error: any) {
-      console.error('Error searching:', error.response?.data || error.message);
+      return (response.data.results || []).filter(
+        (item: Movie) => item.media_type === 'movie' || item.media_type === 'tv'
+      );
+    } catch {
       return [];
     }
   };
 
   const fetchDetails = async (id: number, type: 'movie' | 'tv'): Promise<Movie | null> => {
-    if (!tmdbApiKey) {
-      console.log('No API key set');
-      return null;
-    }
+    if (!tmdbApiKey) return null;
     try {
-      console.log(`Fetching details for ${type} ${id}...`);
-      const config = getAxiosConfig(tmdbApiKey);
-      const response = await axios.get(`${TMDB_BASE_URL}/${type}/${id}`, config);
+      const response = await axios.get(
+        `${TMDB_BASE_URL}/${type}/${id}`,
+        getAxiosConfig(tmdbApiKey)
+      );
       return response.data;
-    } catch (error: any) {
-      console.error('Error fetching details:', error.response?.data || error.message);
+    } catch {
       return null;
     }
   };
 
-  const fetchSeasonDetails = async (tvId: number, seasonNumber: number): Promise<Episode[]> => {
-    if (!tmdbApiKey) {
-      console.log('No API key set');
+  const fetchCredits = async (
+    id: number,
+    type: 'movie' | 'tv'
+  ): Promise<CastMember[]> => {
+    if (!tmdbApiKey) return [];
+    try {
+      const response = await axios.get(
+        `${TMDB_BASE_URL}/${type}/${id}/credits`,
+        getAxiosConfig(tmdbApiKey)
+      );
+      return response.data.cast || [];
+    } catch {
       return [];
     }
+  };
+
+  const fetchRecommendations = async (
+    id: number,
+    type: 'movie' | 'tv'
+  ): Promise<Movie[]> => {
+    if (!tmdbApiKey) return [];
     try {
-      console.log(`Fetching season ${seasonNumber} for TV show ${tvId}...`);
-      const config = getAxiosConfig(tmdbApiKey);
+      const response = await axios.get(
+        `${TMDB_BASE_URL}/${type}/${id}/recommendations`,
+        getAxiosConfig(tmdbApiKey)
+      );
+      return response.data.results || [];
+    } catch {
+      return [];
+    }
+  };
+
+  const fetchPersonDetails = async (id: number): Promise<PersonDetails | null> => {
+    if (!tmdbApiKey) return null;
+    try {
+      const response = await axios.get(
+        `${TMDB_BASE_URL}/person/${id}`,
+        getAxiosConfig(tmdbApiKey)
+      );
+      return response.data;
+    } catch {
+      return null;
+    }
+  };
+
+  const fetchPersonCredits = async (id: number): Promise<PersonCredit[]> => {
+    if (!tmdbApiKey) return [];
+    try {
+      const response = await axios.get(
+        `${TMDB_BASE_URL}/person/${id}/combined_credits`,
+        getAxiosConfig(tmdbApiKey)
+      );
+      return (response.data.cast || []).slice(0, 20);
+    } catch {
+      return [];
+    }
+  };
+
+  const fetchSeasonDetails = async (
+    tvId: number,
+    seasonNumber: number
+  ): Promise<Episode[]> => {
+    if (!tmdbApiKey) return [];
+    try {
       const response = await axios.get(
         `${TMDB_BASE_URL}/tv/${tvId}/season/${seasonNumber}`,
-        config
+        getAxiosConfig(tmdbApiKey)
       );
       return response.data.episodes || [];
-    } catch (error: any) {
-      console.error('Error fetching season details:', error.response?.data || error.message);
+    } catch {
       return [];
     }
   };
 
-  return { fetchTrending, fetchPopular, searchContent, fetchDetails, fetchSeasonDetails };
+  return {
+    tmdbApiKey,
+    fetchTrending,
+    fetchPopular,
+    fetchTopRated,
+    fetchUpcoming,
+    searchContent,
+    fetchDetails,
+    fetchCredits,
+    fetchRecommendations,
+    fetchPersonDetails,
+    fetchPersonCredits,
+    fetchSeasonDetails,
+  };
 };

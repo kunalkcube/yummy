@@ -101,7 +101,6 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
   const loadSettings = async () => {
     try {
-      console.log('Loading settings from AsyncStorage...');
       const savedStreamUrl = await AsyncStorage.getItem(STORAGE_KEYS.STREAM_URL);
       const savedApiKey = await AsyncStorage.getItem(STORAGE_KEYS.TMDB_API_KEY);
       const savedProvider = await AsyncStorage.getItem(STORAGE_KEYS.STREAM_PROVIDER);
@@ -109,10 +108,6 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       const savedIptvChannels = await AsyncStorage.getItem(STORAGE_KEYS.IPTV_CHANNELS);
       const savedIptvFavorites = await AsyncStorage.getItem(STORAGE_KEYS.IPTV_FAVORITES);
       const savedIptvRecents = await AsyncStorage.getItem(STORAGE_KEYS.IPTV_RECENTS);
-
-      console.log('Loaded stream URL:', savedStreamUrl);
-      console.log('Loaded API key:', savedApiKey ? savedApiKey.substring(0, 8) + '...' : 'none');
-      console.log('Loaded provider:', savedProvider);
 
       if (savedStreamUrl) setStreamUrlState(savedStreamUrl);
       if (savedApiKey) setTmdbApiKeyState(savedApiKey);
@@ -124,43 +119,35 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       setIptvChannels(parseStoredArray(savedIptvChannels, isStoredCustomChannel));
       setIptvFavorites(parseStoredArray(savedIptvFavorites, isStoredChannel));
       setIptvRecentChannels(parseStoredArray(savedIptvRecents, isStoredChannel).slice(0, IPTV_RECENT_CHANNEL_LIMIT));
-    } catch (error) {
-      console.error('Error loading settings:', error);
+    } catch {
+      // Keep defaults if storage is unavailable
     }
   };
 
-
-
   const setStreamUrl = async (url: string) => {
     try {
-      console.log('Saving stream URL:', url);
       await AsyncStorage.setItem(STORAGE_KEYS.STREAM_URL, url);
       setStreamUrlState(url);
-      console.log('Stream URL saved successfully');
-    } catch (error) {
-      console.error('Error saving stream URL:', error);
+    } catch {
+      // Ignore persistence failures
     }
   };
 
   const setTmdbApiKey = async (key: string) => {
     try {
-      console.log('Saving TMDB API key:', key.substring(0, 8) + '...');
       await AsyncStorage.setItem(STORAGE_KEYS.TMDB_API_KEY, key);
       setTmdbApiKeyState(key);
-      console.log('TMDB API key saved successfully');
-    } catch (error) {
-      console.error('Error saving TMDB API key:', error);
+    } catch {
+      // Ignore persistence failures
     }
   };
 
   const setStreamProvider = async (provider: string) => {
     try {
-      console.log('Saving stream provider:', provider);
       await AsyncStorage.setItem(STORAGE_KEYS.STREAM_PROVIDER, provider);
       setStreamProviderState(provider);
-      console.log('Stream provider saved successfully');
-    } catch (error) {
-      console.error('Error saving stream provider:', error);
+    } catch {
+      // Ignore persistence failures
     }
   };
 

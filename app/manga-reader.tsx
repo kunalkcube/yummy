@@ -80,7 +80,6 @@ export default function MangaReaderScreen() {
         await loadAniListPages();
       }
     } catch (err: any) {
-      console.error('Error loading pages:', err);
       setError(err.message || 'Failed to load chapter pages');
     } finally {
       setLoading(false);
@@ -107,7 +106,6 @@ export default function MangaReaderScreen() {
         }))
       );
     } catch (err: any) {
-      console.error('MangaPlus pages error:', err);
       throw new Error(err.message || 'Failed to load MangaPlus pages');
     }
   };
@@ -174,7 +172,6 @@ export default function MangaReaderScreen() {
         }))
       );
     } catch (err: any) {
-      console.error('AniList pages error:', err);
       throw new Error(
         err.message ||
           'Failed to load AniList pages. This manga may not be available for reading.'

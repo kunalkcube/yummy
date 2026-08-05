@@ -3,7 +3,6 @@ import { ProviderChips } from '@/components/ProviderChips';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
 import { STREAMING_PROVIDERS } from '@/constants/providers';
-import { useSettings } from '@/contexts/SettingsContext';
 import { Movie, useTMDB } from '@/hooks/useTMDB';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -26,8 +25,13 @@ const { width, height } = Dimensions.get('window');
 const HERO_HEIGHT = height * 0.6;
 
 export default function HomeScreen() {
-  const { fetchTrending, fetchPopular } = useTMDB();
-  const { tmdbApiKey } = useSettings();
+  const {
+    tmdbApiKey,
+    fetchTrending,
+    fetchPopular,
+    fetchTopRated,
+    fetchUpcoming,
+  } = useTMDB();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [selectedProvider, setSelectedProvider] = useState<number | null>(null);
@@ -79,52 +83,6 @@ export default function HomeScreen() {
     }
 
     setLoading(false);
-  };
-
-  const fetchTopRated = async (type: 'movie' | 'tv') => {
-    if (!tmdbApiKey) return [];
-    try {
-      const isBearer = tmdbApiKey.startsWith('eyJ') || tmdbApiKey.length > 100;
-      const response = await fetch(
-        `https://api.themoviedb.org/3/${type}/top_rated${!isBearer ? `?api_key=${tmdbApiKey}` : ''}`,
-        isBearer
-          ? {
-              headers: {
-                accept: 'application/json',
-                Authorization: `Bearer ${tmdbApiKey}`,
-              },
-            }
-          : undefined
-      );
-      const data = await response.json();
-      return data.results || [];
-    } catch (error) {
-      console.error('Failed to fetch top rated:', error);
-      return [];
-    }
-  };
-
-  const fetchUpcoming = async () => {
-    if (!tmdbApiKey) return [];
-    try {
-      const isBearer = tmdbApiKey.startsWith('eyJ') || tmdbApiKey.length > 100;
-      const response = await fetch(
-        `https://api.themoviedb.org/3/movie/upcoming${!isBearer ? `?api_key=${tmdbApiKey}` : ''}`,
-        isBearer
-          ? {
-              headers: {
-                accept: 'application/json',
-                Authorization: `Bearer ${tmdbApiKey}`,
-              },
-            }
-          : undefined
-      );
-      const data = await response.json();
-      return data.results || [];
-    } catch (error) {
-      console.error('Failed to fetch upcoming:', error);
-      return [];
-    }
   };
 
   const handleProviderSelect = (providerId: number | null) => {

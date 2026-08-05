@@ -1,8 +1,7 @@
 import { SeasonsList } from '@/components/SeasonsList';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
-import { useSettings } from '@/contexts/SettingsContext';
-import { Movie, useTMDB } from '@/hooks/useTMDB';
+import { CastMember, Movie, useTMDB } from '@/hooks/useTMDB';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AlertCircle, ArrowLeft, Film, Play, Star, Tv, User } from 'lucide-react-native';
@@ -25,13 +24,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const { height } = Dimensions.get('window');
 const HERO_HEIGHT = height * 0.48;
 
-interface Cast {
-  id: number;
-  name: string;
-  character: string;
-  profile_path: string | null;
-}
-
 interface Genre {
   id: number;
   name: string;
@@ -39,12 +31,11 @@ interface Genre {
 
 export default function DetailsScreen() {
   const { id, type } = useLocalSearchParams<{ id: string; type: 'movie' | 'tv' }>();
-  const { fetchDetails } = useTMDB();
-  const { tmdbApiKey } = useSettings();
+  const { fetchDetails, fetchCredits, fetchRecommendations } = useTMDB();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [details, setDetails] = useState<Movie | null>(null);
-  const [cast, setCast] = useState<Cast[]>([]);
+  const [cast, setCast] = useState<CastMember[]>([]);
   const [recommendations, setRecommendations] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAllCast, setShowAllCast] = useState(false);
@@ -60,53 +51,14 @@ export default function DetailsScreen() {
     const data = await fetchDetails(Number(id), type);
     setDetails(data);
 
-    await Promise.all([loadCast(), loadRecommendations()]);
+    const [castData, recData] = await Promise.all([
+      fetchCredits(Number(id), type),
+      fetchRecommendations(Number(id), type),
+    ]);
+    setCast(castData);
+    setRecommendations(recData);
 
     setLoading(false);
-  };
-
-  const loadCast = async () => {
-    if (!tmdbApiKey) return;
-    try {
-      const isBearer = tmdbApiKey.startsWith('eyJ') || tmdbApiKey.length > 100;
-      const response = await fetch(
-        `https://api.themoviedb.org/3/${type}/${id}/credits${!isBearer ? `?api_key=${tmdbApiKey}` : ''}`,
-        isBearer
-          ? {
-              headers: {
-                accept: 'application/json',
-                Authorization: `Bearer ${tmdbApiKey}`,
-              },
-            }
-          : undefined
-      );
-      const data = await response.json();
-      setCast(data.cast || []);
-    } catch (error) {
-      console.error('Failed to load cast:', error);
-    }
-  };
-
-  const loadRecommendations = async () => {
-    if (!tmdbApiKey) return;
-    try {
-      const isBearer = tmdbApiKey.startsWith('eyJ') || tmdbApiKey.length > 100;
-      const response = await fetch(
-        `https://api.themoviedb.org/3/${type}/${id}/recommendations${!isBearer ? `?api_key=${tmdbApiKey}` : ''}`,
-        isBearer
-          ? {
-              headers: {
-                accept: 'application/json',
-                Authorization: `Bearer ${tmdbApiKey}`,
-              },
-            }
-          : undefined
-      );
-      const data = await response.json();
-      setRecommendations(data.results || []);
-    } catch (error) {
-      console.error('Failed to load recommendations:', error);
-    }
   };
 
   const handleWatchNow = (season?: number, episode?: number) => {
@@ -184,7 +136,7 @@ export default function DetailsScreen() {
       ? `${details.number_of_seasons} Season${details.number_of_seasons > 1 ? 's' : ''}`
       : null;
 
-  const renderCastItem = ({ item }: { item: Cast }) => (
+  const renderCastItem = ({ item }: { item: CastMember }) => (
     <TouchableOpacity
       style={styles.castCard}
       onPress={() => router.push({ pathname: '/person', params: { id: item.id } })}

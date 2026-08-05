@@ -43,9 +43,7 @@ export function useVersionCheck() {
           downloadUrl: data.html_url,
         });
       }
-    } catch (error) {
-      console.error('Version check failed:', error);
-    } finally {
+    } catch { } finally {
       setIsLoading(false);
     }
   }, []);

@@ -109,7 +109,6 @@ export default function MangaDetailsScreen() {
         await loadAniListDetails();
       }
     } catch (err: any) {
-      console.error('Error loading manga details:', err);
       setError(err.message || 'Failed to load manga details');
     } finally {
       setLoading(false);
@@ -168,7 +167,6 @@ export default function MangaDetailsScreen() {
         rating: titleDetails.rating,
       });
     } catch (err) {
-      console.error('MangaPlus details error:', err);
       throw new Error('Failed to load MangaPlus details. Please try again.');
     }
   };
@@ -263,7 +261,6 @@ export default function MangaDetailsScreen() {
         source: 'anilist',
       });
     } catch (err) {
-      console.error('loadAniListDetails error:', err);
       throw new Error('Failed to load AniList details');
     }
   };
@@ -279,9 +276,7 @@ export default function MangaDetailsScreen() {
         await mangaPlus.addFavorite(parseInt(params.id));
         setIsFavorite(true);
       }
-    } catch (err) {
-      console.error('Error toggling favorite:', err);
-    }
+    } catch { }
   };
 
   const openInBrowser = () => {

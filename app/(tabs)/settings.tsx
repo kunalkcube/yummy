@@ -393,6 +393,11 @@ export default function SettingsScreen() {
         <Text style={styles.sectionLabel}>About</Text>
         <Text style={styles.aboutText}>Yummy v{Constants.expoConfig?.version}</Text>
         <Text style={styles.aboutMeta}>Personal streaming app powered by TMDB</Text>
+        <Text style={[styles.aboutMeta, styles.privacyNote]}>
+          Privacy: Yummy has no backend. TMDB credentials, IPTV playlists/channels, favorites, and
+          MangaPlus device IDs stay on this device (AsyncStorage). Network requests go only to the
+          third-party APIs you use (TMDB, IPTV playlists, manga sources).
+        </Text>
       </View>
 
       <View style={styles.bottomSpacer} />
@@ -486,6 +491,11 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontSize: 13,
     fontFamily: Fonts.GeistMono.Regular,
+  },
+  privacyNote: {
+    marginTop: 12,
+    lineHeight: 20,
+    fontSize: 12,
   },
   providerOption: {
     flexDirection: 'row',

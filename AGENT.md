@@ -34,16 +34,16 @@ There is currently no test runner or test script. Run `npm run lint` for every c
 | `app/` | Expo Router screens and navigation layouts |
 | `app/(tabs)/` | Home, search, manga, IPTV, and settings tabs |
 | `app/details.tsx`, `app/person.tsx` | TMDB detail screens |
-
+| `app/player.tsx` | Third-party streaming-provider WebView player |
 | `app/iptv-player.tsx` | Direct IPTV stream playback through Plyr |
 | `app/manga-details.tsx`, `app/manga-reader.tsx` | Manga metadata, chapters, and gesture-enabled reader |
-| `components/` | Reusable media, empty-state, and update UI |
+| `components/` | Shared media UI, `AppAlert`, and update prompt |
 | `contexts/SettingsContext.tsx` | Persisted TMDB, IPTV playlist, favorite, and recent-channel state |
 | `hooks/useIptv.ts` | Validated M3U parsing and playlist loading |
 | `hooks/useTMDB.ts` | TMDB API client and shared media types |
 | `hooks/useMangaPlus.ts` | MangaPlus device lifecycle and API client |
 | `hooks/useVersionCheck.ts` | GitHub Release update check |
-| `constants/` | Active theme tokens, fonts, TMDB provider filters, and IPTV types |
+| `constants/` | Colors, fonts, stream providers, TMDB provider filters, IPTV types |
 | `assets/` | App icons, splash image, and bundled Geist Mono fonts |
 
 ## Architecture and Conventions
@@ -59,18 +59,20 @@ There is currently no test runner or test script. Run `npm run lint` for every c
 ### State and networking
 
 - Read and write app preferences only through `useSettings()`; it persists values in AsyncStorage.
-- Use `useTMDB()` for TMDB list/detail/season calls instead of duplicating its auth logic. The app accepts either a v3 API key or a v4 bearer token.
+- Use `useTMDB()` for all TMDB calls (trending, popular, top-rated, upcoming, search, details, credits, recommendations, person, seasons). Do not reimplement bearer/API-key auth in screens.
 - `useMangaPlus()` owns device registration and the persisted MangaPlus device secret. Await its initialization before relying on its client calls.
 - IPTV playlist configuration, favorites, and recents belong in `useSettings()`. Validate M3U URLs and parsed channels before persisting or rendering them.
 - Existing external calls generally handle failures by returning empty data or setting screen-local error state. Preserve that user-facing behavior when extending a screen.
-- Do not log credentials, bearer tokens, device secrets, full authorization headers, or raw sensitive API responses.
+- Do not log credentials, bearer tokens, device secrets, full authorization headers, or raw sensitive API responses. Prefer silent failure / empty returns over debug logging in hooks.
 
 ### UI
 
-- The active product theme is `constants/colors.ts` and `constants/fonts.ts`: black/surface/card backgrounds, red accent, and bundled Geist Mono fonts.
-- Use `Colors` and `Fonts.GeistMono` rather than hardcoded replacements for shared UI tokens.
-- `constants/theme.ts`, themed components, and some UI files are Expo starter artifacts; do not migrate screens to them unless the task explicitly includes a theme-system refactor.
-- Keep screen-local `StyleSheet.create` styles and existing functional-component patterns unless extracting a genuinely shared component.
+- Product theme: `constants/colors.ts` (black / surface / card, red accent `#e50914`) and `constants/fonts.ts`.
+- Bundled Geist Mono weights in use: **Regular**, **Medium**, **SemiBold**, **Bold** only. Do not reintroduce unused weights.
+- Prefer quiet uppercase section labels, radius-8 controls, white primary CTAs, accent-border selected chips, Lucide icons (including `Star` for ratings — no emoji stars), and safe-area insets on headers.
+- Use `Colors` and `Fonts.GeistMono` rather than ad-hoc replacements for shared tokens.
+- Keep screen-local `StyleSheet.create` styles and functional-component patterns unless extracting a genuinely shared component.
+- Alerts: use `AppAlert.alert(title, message?, buttons?)` from `components/AppAlert.tsx`. Do not use React Native `Alert`. The root layout mounts `AlertProvider`.
 
 ### IPTV playback
 
@@ -82,14 +84,21 @@ There is currently no test runner or test script. Run `npm run lint` for every c
 - `.env` is local-only. Never commit API keys, bearer tokens, device secrets, release tokens, or signing credentials.
 - Expo exposes only variables prefixed `EXPO_PUBLIC_` to the app bundle. These values are public at runtime; they must not contain secrets.
 - `EXPO_PUBLIC_MANGAPLUS_BASE_URL` is required by `useMangaPlus.ts` and must point to a compatible MangaPlus API service.
-- The repository contains legacy debug/test UI under `components/`; do not copy credentials from it into production paths. Flag exposed credentials for removal or rotation when that work is in scope.
-- IPTV streams and public manga APIs can change or block clients. Avoid assuming their response shapes are stable; guard parsing and preserve fallback/error UI.
+- TMDB credentials are entered in Settings and stored in AsyncStorage — not read from env by product code.
+- Privacy: Yummy has no backend. Device-local storage only; summary in Settings → About. IPTV streams and public manga APIs can change or block clients; guard parsing and preserve fallback/error UI.
+
+## Release (personal APK)
+
+- Splash/adaptive icon backgrounds use `#000000` to match the dark UI (`app.json`).
+- Build locally with `npm run android` / EAS Build when configured. Keep keystores and credentials out of git.
+- There is no CI release pipeline in-repo; document or add one only when intentionally shipping signed builds.
+- Before sharing a build: confirm Settings has no shared TMDB key you care about, and run lint/typecheck.
 
 ## Change Workflow
 
 1. Inspect the target screen/hook plus its callers before editing.
 2. Follow established imports (`@/` alias), functional components, strict TypeScript, and local `StyleSheet` patterns.
-3. Keep changes focused; do not reformat or refactor starter artifacts as collateral.
+3. Keep changes focused; match the current quiet UI language when touching screens.
 4. Run `npm run lint` and, for TypeScript changes, `npx tsc --noEmit` when practical.
 5. Manually exercise changed route, loading, empty/error, and navigation paths in Expo/Android when behavior changes.
 6. Review `git status --short` before finishing. The working tree may contain changes unrelated to your task; preserve them.

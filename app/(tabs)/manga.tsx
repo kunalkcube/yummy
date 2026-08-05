@@ -71,9 +71,7 @@ export default function MangaScreen() {
           }))
       );
       setTrendingManga(trending);
-    } catch (err) {
-      console.error('Error loading MangaPlus trending:', err);
-    }
+    } catch { }
   };
 
   const searchMangaDex = async (query: string) => {
@@ -103,7 +101,6 @@ export default function MangaScreen() {
         };
       });
     } catch (err) {
-      console.error('MangaDex search error:', err);
       return [];
     }
   };
@@ -172,7 +169,6 @@ export default function MangaScreen() {
         source: 'anilist' as const,
       }));
     } catch (err: any) {
-      console.error('AniList search error:', err);
       throw new Error('AniList API is currently unavailable. Try MangaDex instead.');
     }
   };
@@ -196,7 +192,6 @@ export default function MangaScreen() {
           }))
       );
     } catch (err) {
-      console.error('MangaPlus search error:', err);
       return [];
     }
   };
@@ -228,7 +223,6 @@ export default function MangaScreen() {
         setError('No results found. Try a different search term.');
       }
     } catch (err: any) {
-      console.error('Search error:', err);
       setError(err.message || `Failed to search ${selectedSource}. Please try again.`);
       setResults([]);
     } finally {
