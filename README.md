@@ -1,6 +1,6 @@
 # Yummy
 
-A personal movie/TV show streaming app with TMDB integration, built with React Native and Expo.
+A personal media app for TMDB discovery, manga reading, and IPTV playback, built with React Native and Expo.
 
 <p align="center">
   <img src="docs/home_screen.jpg" alt="Home Screen" width="200" />
@@ -17,14 +17,19 @@ A personal movie/TV show streaming app with TMDB integration, built with React N
 
 - Browse movies and TV shows
 - Search across TMDB catalog
-- Stream content with multiple providers
+
 - Read manga with built-in reader
+- Browse IPTV-org channels and saved M3U playlists with Plyr playback
 - Dark theme
 - Automatic update alerts via GitHub Releases
 
 ## Prerequisites
 
 - TMDB API Key (free at [themoviedb.org](https://www.themoviedb.org/settings/api))
+
+## IPTV
+
+The IPTV tab includes the category-grouped [iptv-org playlist](https://iptv-org.github.io/iptv/index.category.m3u). Add additional public HTTPS M3U playlists from **Settings → IPTV Playlists**. IPTV streams must allow direct browser playback; protected, DRM, or offline streams cannot be played by the embedded player.
 
 ## DNS Configuration
 
@@ -52,7 +57,6 @@ Edit `.env` with your API keys:
 
 ```
 TMDB_API_KEY=your_tmdb_api_key_here
-BASE_STREAM_URL=https://player.videasy.net
 EXPO_PUBLIC_MANGAPLUS_BASE_URL=your_mangaplus_api_url
 ```
 

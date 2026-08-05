@@ -111,20 +111,20 @@ export default function DetailsScreen() {
   };
 
   const handleWatchNow = (season?: number, episode?: number) => {
-    const params: any = { 
-      id, 
+    const params: any = {
+      id,
       type,
       title: details?.title || details?.name || 'Unknown',
     };
-    
+
     // Only add season/episode for TV shows
     if (type === 'tv') {
       params.season = season?.toString() || '1';
       params.episode = episode?.toString() || '1';
     }
-    
+
     console.log('Navigating to player with params:', params);
-    
+
     router.push({
       pathname: '/player',
       params,
@@ -308,8 +308,8 @@ export default function DetailsScreen() {
           )}
 
           {/* Continue Watch Button */}
-          <TouchableOpacity 
-            style={styles.continueButton} 
+          <TouchableOpacity
+            style={styles.continueButton}
             onPress={() => handleWatchNow()}
             activeOpacity={0.9}
           >

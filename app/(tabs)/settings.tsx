@@ -4,19 +4,44 @@ import { getStreamProvider, STREAM_PROVIDERS } from '@/constants/streamProviders
 import { useSettings } from '@/contexts/SettingsContext';
 import axios from 'axios';
 import Constants from 'expo-constants';
-import { Check } from 'lucide-react-native';
+import { Check, Trash2 } from 'lucide-react-native';
 import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
+const getPlaylistHost = (url: string) => {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return 'Invalid URL';
+  }
+};
+
 export default function SettingsScreen() {
-  const { streamUrl, tmdbApiKey, streamProvider, setStreamUrl, setTmdbApiKey, setStreamProvider } = useSettings();
+  const {
+    streamUrl,
+    tmdbApiKey,
+    streamProvider,
+    iptvPlaylists,
+    iptvChannels,
+    setStreamUrl,
+    setTmdbApiKey,
+    setStreamProvider,
+    addIptvPlaylist,
+    removeIptvPlaylist,
+    addIptvChannel,
+    removeIptvChannel,
+  } = useSettings();
   const [localStreamUrl, setLocalStreamUrl] = useState(streamUrl);
   const [localApiKey, setLocalApiKey] = useState(tmdbApiKey);
   const [localProvider, setLocalProvider] = useState(streamProvider);
+  const [iptvPlaylistName, setIptvPlaylistName] = useState('');
+  const [iptvPlaylistUrl, setIptvPlaylistUrl] = useState('');
+  const [iptvChannelName, setIptvChannelName] = useState('');
+  const [iptvChannelUrl, setIptvChannelUrl] = useState('');
 
   const handleSaveProvider = async () => {
     await setStreamProvider(localProvider);
-    
+
     if (localProvider !== 'custom') {
       const provider = getStreamProvider(localProvider);
       if (provider) {
@@ -24,7 +49,7 @@ export default function SettingsScreen() {
         setLocalStreamUrl(provider.baseUrl);
       }
     }
-    
+
     Alert.alert('Success', 'Stream provider saved successfully');
   };
 
@@ -36,6 +61,52 @@ export default function SettingsScreen() {
   const handleSaveApiKey = async () => {
     await setTmdbApiKey(localApiKey);
     Alert.alert('Success', 'TMDB API Key saved successfully');
+  };
+
+  const handleAddIptvPlaylist = async () => {
+    try {
+      await addIptvPlaylist({ name: iptvPlaylistName, url: iptvPlaylistUrl });
+      setIptvPlaylistName('');
+      setIptvPlaylistUrl('');
+      Alert.alert('Playlist added', 'It is ready to load from the IPTV tab.');
+    } catch (error) {
+      Alert.alert('Playlist not added', error instanceof Error ? error.message : 'Please check the playlist details.');
+    }
+  };
+
+  const handleAddIptvChannel = async () => {
+    try {
+      await addIptvChannel({ name: iptvChannelName, url: iptvChannelUrl });
+      setIptvChannelName('');
+      setIptvChannelUrl('');
+      Alert.alert('Channel added', 'It is ready to play from the IPTV tab.');
+    } catch (error) {
+      Alert.alert('Channel not added', error instanceof Error ? error.message : 'Please check the channel details.');
+    }
+  };
+
+  const confirmRemoveIptvChannel = (channelId: string, channelName: string) => {
+    Alert.alert('Remove channel', `Remove ${channelName}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => void removeIptvChannel(channelId),
+      },
+    ]);
+  };
+
+  const confirmRemoveIptvPlaylist = (playlistId: string, playlistName: string) => {
+    Alert.alert('Remove playlist', `Remove ${playlistName} and its saved channels?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => {
+          void removeIptvPlaylist(playlistId);
+        },
+      },
+    ]);
   };
 
   const testAPI = async () => {
@@ -90,7 +161,7 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Stream Provider</Text>
         <Text style={styles.label}>Choose your streaming provider</Text>
-        
+
         {STREAM_PROVIDERS.map((provider) => (
           <TouchableOpacity
             key={provider.id}
@@ -125,11 +196,11 @@ export default function SettingsScreen() {
             )}
           </TouchableOpacity>
         ))}
-        
+
         <TouchableOpacity style={styles.button} onPress={handleSaveProvider}>
           <Text style={styles.buttonText}>Save Provider</Text>
         </TouchableOpacity>
-        
+
         <Text style={styles.hint}>
           Select a streaming provider. Each provider has different content availability and quality.
           {'\n\n'}You can also use a custom URL.
@@ -158,6 +229,110 @@ export default function SettingsScreen() {
           </Text>
         </View>
       )}
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>IPTV Playlists</Text>
+        <Text style={styles.label}>Add an HTTPS M3U playlist</Text>
+        <TextInput
+          style={styles.input}
+          value={iptvPlaylistName}
+          onChangeText={setIptvPlaylistName}
+          placeholder="Playlist name"
+          placeholderTextColor={Colors.textSecondary}
+          autoCapitalize="words"
+          autoCorrect={false}
+        />
+        <TextInput
+          style={styles.input}
+          value={iptvPlaylistUrl}
+          onChangeText={setIptvPlaylistUrl}
+          placeholder="https://example.com/channels.m3u"
+          placeholderTextColor={Colors.textSecondary}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+        />
+        <TouchableOpacity style={styles.button} onPress={handleAddIptvPlaylist}>
+          <Text style={styles.buttonText}>Add Playlist</Text>
+        </TouchableOpacity>
+
+        <View style={styles.playlistList}>
+          {iptvPlaylists.map((playlist) => (
+            <View key={playlist.id} style={styles.playlistItem}>
+              <View style={styles.playlistInfo}>
+                <Text style={styles.playlistName}>{playlist.name}</Text>
+                <Text style={styles.playlistHost}>{getPlaylistHost(playlist.url)}</Text>
+              </View>
+              {playlist.isBuiltIn ? (
+                <Text style={styles.builtInLabel}>Built-in</Text>
+              ) : (
+                <TouchableOpacity
+                  accessibilityLabel={`Remove ${playlist.name} playlist`}
+                  style={styles.removePlaylistButton}
+                  onPress={() => confirmRemoveIptvPlaylist(playlist.id, playlist.name)}
+                >
+                  <Trash2 size={18} color={Colors.accent} />
+                </TouchableOpacity>
+              )}
+            </View>
+          ))}
+        </View>
+
+        <Text style={styles.hint}>
+          IPTV-org is included by default. Only public, direct streams that allow browser playback can open in Plyr.
+        </Text>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Custom Channels</Text>
+        <Text style={styles.label}>Add an individual channel stream URL</Text>
+        <TextInput
+          style={styles.input}
+          value={iptvChannelName}
+          onChangeText={setIptvChannelName}
+          placeholder="Channel name"
+          placeholderTextColor={Colors.textSecondary}
+          autoCapitalize="words"
+          autoCorrect={false}
+        />
+        <TextInput
+          style={styles.input}
+          value={iptvChannelUrl}
+          onChangeText={setIptvChannelUrl}
+          placeholder="https://example.com/stream.m3u8"
+          placeholderTextColor={Colors.textSecondary}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+        />
+        <TouchableOpacity style={styles.button} onPress={handleAddIptvChannel}>
+          <Text style={styles.buttonText}>Add Channel</Text>
+        </TouchableOpacity>
+
+        {iptvChannels.length > 0 && (
+          <View style={styles.playlistList}>
+            {iptvChannels.map((channel) => (
+              <View key={channel.id} style={styles.playlistItem}>
+                <View style={styles.playlistInfo}>
+                  <Text style={styles.playlistName}>{channel.name}</Text>
+                  <Text style={styles.playlistHost}>{channel.streamUrl}</Text>
+                </View>
+                <TouchableOpacity
+                  accessibilityLabel={`Remove ${channel.name}`}
+                  style={styles.removePlaylistButton}
+                  onPress={() => confirmRemoveIptvChannel(channel.id, channel.name)}
+                >
+                  <Trash2 size={18} color={Colors.accent} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <Text style={styles.hint}>
+          Add individual direct stream URLs (HLS, MP4, etc.). They will appear in the IPTV tab and can be played through Plyr.
+        </Text>
+      </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>TMDB API</Text>
@@ -317,5 +492,41 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.GeistMono.Regular,
     color: Colors.textSecondary,
     marginBottom: 2,
+  },
+  playlistList: {
+    marginTop: 16,
+    gap: 10,
+  },
+  playlistItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.surface,
+    borderRadius: 10,
+    padding: 14,
+  },
+  playlistInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  playlistName: {
+    color: Colors.text,
+    fontFamily: Fonts.GeistMono.SemiBold,
+    fontSize: 14,
+    marginBottom: 3,
+  },
+  playlistHost: {
+    color: Colors.textSecondary,
+    fontFamily: Fonts.GeistMono.Regular,
+    fontSize: 12,
+  },
+  builtInLabel: {
+    color: Colors.accent,
+    fontFamily: Fonts.GeistMono.SemiBold,
+    fontSize: 11,
+    textTransform: 'uppercase',
+  },
+  removePlaylistButton: {
+    padding: 8,
   },
 });

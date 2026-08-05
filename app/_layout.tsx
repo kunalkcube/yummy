@@ -55,6 +55,8 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="details" options={{ headerShown: false }} />
           <Stack.Screen name="player" options={{ headerShown: false }} />
+
+          <Stack.Screen name="iptv-player" options={{ headerShown: false }} />
           <Stack.Screen name="person" options={{ headerShown: false }} />
           <Stack.Screen name="manga-details" options={{ headerShown: false }} />
           <Stack.Screen name="manga-reader" options={{ headerShown: false }} />

@@ -18,7 +18,7 @@ export function useVersionCheck() {
 
   const checkForUpdates = useCallback(async () => {
     try {
-      const currentVersion = Application.nativeApplicationVersion || '1.0.0';
+      const currentVersion = Application.nativeApplicationVersion!;
 
       const response = await fetch(
         `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`
