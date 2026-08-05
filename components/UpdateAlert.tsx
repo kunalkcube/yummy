@@ -76,7 +76,7 @@ export default function UpdateAlert({
           </View>
 
           <TouchableOpacity style={styles.updateButton} onPress={handleUpdate} activeOpacity={0.85}>
-            <Download size={18} color="#fff" />
+            <Download size={18} color="#000" />
             <Text style={styles.updateButtonText}>Download Update</Text>
           </TouchableOpacity>
 
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: 8,
     padding: 20,
     width: '100%',
     maxWidth: 360,
@@ -111,7 +111,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 12,
     right: 12,
-    padding: 4,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: Colors.card,
+    justifyContent: 'center',
+    alignItems: 'center',
     zIndex: 1,
   },
   header: {
@@ -122,13 +127,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     width: 48,
     height: 48,
-    borderRadius: 24,
+    borderRadius: 8,
     backgroundColor: `${Colors.accent}15`,
     justifyContent: 'center',
     alignItems: 'center',
   },
   title: {
-    fontSize: 20,
+    fontSize: 16,
     fontFamily: Fonts.GeistMono.Bold,
     color: Colors.text,
     marginBottom: 4,
@@ -203,16 +208,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.accent,
-    borderRadius: 30,
+    backgroundColor: '#fff',
+    borderRadius: 8,
     paddingVertical: 14,
     gap: 8,
     marginBottom: 10,
   },
   updateButtonText: {
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: Fonts.GeistMono.Bold,
-    color: '#fff',
+    color: '#000',
   },
   dismissButton: {
     alignItems: 'center',

@@ -10,16 +10,20 @@ import {
   Dimensions,
   FlatList,
   Image,
-  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const { height } = Dimensions.get('window');
+const { height, width } = Dimensions.get('window');
+const HERO_HEIGHT = height * 0.48;
+const CREDIT_WIDTH = width * 0.3;
+const CREDIT_HEIGHT = CREDIT_WIDTH * 1.55;
 
 interface PersonDetails {
   id: number;
@@ -48,9 +52,11 @@ export default function PersonScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { tmdbApiKey } = useSettings();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [person, setPerson] = useState<PersonDetails | null>(null);
   const [credits, setCredits] = useState<MovieCredit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAllCredits, setShowAllCredits] = useState(false);
 
   useEffect(() => {
     loadPersonDetails();
@@ -59,12 +65,9 @@ export default function PersonScreen() {
   const loadPersonDetails = async () => {
     if (!id || !tmdbApiKey) return;
     setLoading(true);
-    
-    await Promise.all([
-      fetchPersonDetails(),
-      fetchPersonCredits()
-    ]);
-    
+
+    await Promise.all([fetchPersonDetails(), fetchPersonCredits()]);
+
     setLoading(false);
   };
 
@@ -73,12 +76,14 @@ export default function PersonScreen() {
       const isBearer = tmdbApiKey.startsWith('eyJ') || tmdbApiKey.length > 100;
       const response = await fetch(
         `https://api.themoviedb.org/3/person/${id}${!isBearer ? `?api_key=${tmdbApiKey}` : ''}`,
-        isBearer ? {
-          headers: {
-            accept: 'application/json',
-            Authorization: `Bearer ${tmdbApiKey}`,
-          },
-        } : undefined
+        isBearer
+          ? {
+              headers: {
+                accept: 'application/json',
+                Authorization: `Bearer ${tmdbApiKey}`,
+              },
+            }
+          : undefined
       );
       const data = await response.json();
       setPerson(data);
@@ -92,12 +97,14 @@ export default function PersonScreen() {
       const isBearer = tmdbApiKey.startsWith('eyJ') || tmdbApiKey.length > 100;
       const response = await fetch(
         `https://api.themoviedb.org/3/person/${id}/combined_credits${!isBearer ? `?api_key=${tmdbApiKey}` : ''}`,
-        isBearer ? {
-          headers: {
-            accept: 'application/json',
-            Authorization: `Bearer ${tmdbApiKey}`,
-          },
-        } : undefined
+        isBearer
+          ? {
+              headers: {
+                accept: 'application/json',
+                Authorization: `Bearer ${tmdbApiKey}`,
+              },
+            }
+          : undefined
       );
       const data = await response.json();
       setCredits(data.cast?.slice(0, 20) || []);
@@ -120,19 +127,30 @@ export default function PersonScreen() {
   const renderCreditItem = ({ item }: { item: MovieCredit }) => (
     <TouchableOpacity
       style={styles.creditCard}
-      onPress={() => router.push({ 
-        pathname: '/details', 
-        params: { id: item.id, type: item.media_type } 
-      })}
+      onPress={() =>
+        router.push({
+          pathname: '/details',
+          params: { id: item.id, type: item.media_type },
+        })
+      }
+      activeOpacity={0.85}
     >
       <Image
-        source={{ 
-          uri: item.poster_path 
+        source={{
+          uri: item.poster_path
             ? `https://image.tmdb.org/t/p/w342${item.poster_path}`
-            : 'https://via.placeholder.com/342x513?text=No+Image'
+            : 'https://via.placeholder.com/342x513?text=No+Image',
         }}
         style={styles.creditImage}
       />
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.85)']}
+        style={styles.creditGradient}
+      >
+        <Text style={styles.creditTitle} numberOfLines={2}>
+          {item.title || item.name}
+        </Text>
+      </LinearGradient>
     </TouchableOpacity>
   );
 
@@ -153,8 +171,16 @@ export default function PersonScreen() {
       <View style={styles.container}>
         <StatusBar barStyle="light-content" />
         <View style={styles.errorContainer}>
-          <AlertCircle size={64} color={Colors.textSecondary} />
-          <Text style={styles.errorText}>Failed to load person details</Text>
+          <AlertCircle size={48} color={Colors.textSecondary} />
+          <Text style={styles.errorTitle}>Failed to load</Text>
+          <Text style={styles.errorText}>Couldn’t load this person. Try again.</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={loadPersonDetails}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.retryButtonText}>Try Again</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -165,113 +191,133 @@ export default function PersonScreen() {
     : null;
 
   const age = person.birthday ? calculateAge(person.birthday) : null;
-  const gender = person.gender === 1 ? 'Feminine' : person.gender === 2 ? 'Masculine' : 'Other';
+  const gender =
+    person.gender === 1 ? 'Female' : person.gender === 2 ? 'Male' : null;
+  const birthYear = person.birthday?.substring(0, 4);
+  const department = person.known_for_department?.toUpperCase();
+
+  const infoRows: { label: string; value: string }[] = [
+    person.known_for_department
+      ? { label: 'Known for', value: person.known_for_department }
+      : null,
+    person.birthday
+      ? {
+          label: 'Born',
+          value: age != null ? `${person.birthday}  ·  Age ${age}` : person.birthday,
+        }
+      : null,
+    person.place_of_birth
+      ? { label: 'Place of birth', value: person.place_of_birth }
+      : null,
+    gender ? { label: 'Gender', value: gender } : null,
+    credits.length > 0
+      ? { label: 'Credits shown', value: String(credits.length) }
+      : null,
+    person.also_known_as?.[0]
+      ? { label: 'Also known as', value: person.also_known_as[0] }
+      : null,
+    person.popularity && person.popularity > 0
+      ? { label: 'Popularity', value: person.popularity.toFixed(1) }
+      : null,
+  ].filter(Boolean) as { label: string; value: string }[];
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Hero Section */}
         <View style={styles.heroContainer}>
           {profileUrl ? (
             <Image source={{ uri: profileUrl }} style={styles.heroImage} />
           ) : (
             <View style={[styles.heroImage, styles.placeholderImage]}>
-              <User size={120} color={Colors.textSecondary} />
+              <User size={72} color={Colors.textSecondary} />
             </View>
           )}
-          
-          {/* Gradient Overlay */}
+
           <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.8)', Colors.background]}
+            colors={['rgba(0,0,0,0.4)', 'transparent', 'rgba(0,0,0,0.55)', Colors.background]}
+            locations={[0, 0.25, 0.65, 1]}
             style={styles.gradient}
           />
 
-          {/* Back Button */}
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <ArrowLeft size={24} color="#fff" />
+          <TouchableOpacity
+            style={[styles.backButton, { top: insets.top + 8 }]}
+            onPress={() => router.back()}
+            activeOpacity={0.85}
+            accessibilityLabel="Go back"
+          >
+            <ArrowLeft size={20} color="#fff" />
           </TouchableOpacity>
 
-          {/* Name and Character Overlay */}
-          <View style={styles.heroContent}>
-            <View style={styles.profileImageContainer}>
-              {profileUrl && (
-                <Image source={{ uri: profileUrl }} style={styles.profileImage} />
-              )}
-            </View>
+          <Animated.View entering={FadeInDown.duration(250)} style={styles.heroContent}>
+            {profileUrl ? (
+              <Image source={{ uri: profileUrl }} style={styles.profileImage} />
+            ) : (
+              <View style={[styles.profileImage, styles.castPlaceholder]}>
+                <User size={36} color={Colors.textSecondary} />
+              </View>
+            )}
             <View style={styles.heroTextContainer}>
-              <Text style={styles.name}>{person.name}</Text>
-              <Text style={styles.character}>{person.known_for_department}</Text>
+              <View style={styles.heroMetaLine}>
+                {department && <Text style={styles.heroMetaText}>{department}</Text>}
+                {birthYear && (
+                  <>
+                    <Text style={styles.heroMetaDot}>·</Text>
+                    <Text style={styles.heroMetaText}>{birthYear}</Text>
+                  </>
+                )}
+                {age != null && (
+                  <>
+                    <Text style={styles.heroMetaDot}>·</Text>
+                    <Text style={styles.heroMetaText}>{age} YRS</Text>
+                  </>
+                )}
+              </View>
+              <Text style={styles.name} numberOfLines={2}>
+                {person.name}
+              </Text>
             </View>
-          </View>
+          </Animated.View>
         </View>
 
-        {/* Content Section */}
         <View style={styles.content}>
-          {/* Biography */}
-          {person.biography && (
+          {person.biography ? (
             <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Biography</Text>
               <Text style={styles.bio}>{person.biography}</Text>
             </View>
+          ) : null}
+
+          {infoRows.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Details</Text>
+              <View style={styles.infoList}>
+                {infoRows.map((row) => (
+                  <View key={row.label} style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>{row.label}</Text>
+                    <Text style={styles.infoValue}>{row.value}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
           )}
 
-          {/* Popularity Section - Only show if available */}
-          {person.popularity && person.popularity > 0 && (
-            <View style={styles.popularitySection}>
-              <Text style={styles.popularityLabel}>Popularity Score</Text>
-              <Text style={styles.popularityText}>{person.popularity.toFixed(1)}</Text>
-            </View>
-          )}
-
-          {/* Info Grid */}
-          <View style={styles.infoGrid}>
-            <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Know for:</Text>
-              <Text style={styles.infoValue}>{person.known_for_department}</Text>
-            </View>
-            {person.birthday && (
-              <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>Birth:</Text>
-                <Text style={styles.infoValue}>
-                  {person.birthday} (Age {age})
-                </Text>
-              </View>
-            )}
-            <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Credited in:</Text>
-              <Text style={styles.infoValue}>{credits.length}</Text>
-            </View>
-            {person.place_of_birth && (
-              <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>Place of birth:</Text>
-                <Text style={styles.infoValue}>{person.place_of_birth}</Text>
-              </View>
-            )}
-            <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Genre:</Text>
-              <Text style={styles.infoValue}>{gender}</Text>
-            </View>
-            {person.also_known_as && person.also_known_as.length > 0 && (
-              <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>Also known as:</Text>
-                <Text style={styles.infoValue}>{person.also_known_as[0]}</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Known For Section */}
           {credits.length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>Know for</Text>
-                <TouchableOpacity>
-                  <Text style={styles.seeAllText}>See all</Text>
-                </TouchableOpacity>
+                <Text style={styles.sectionLabel}>Known For</Text>
+                {credits.length > 10 && (
+                  <TouchableOpacity onPress={() => setShowAllCredits(!showAllCredits)}>
+                    <Text style={styles.seeAllText}>
+                      {showAllCredits ? 'Show less' : `See all (${credits.length})`}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
               <FlatList
-                data={credits}
+                data={showAllCredits ? credits : credits.slice(0, 10)}
                 renderItem={renderCreditItem}
-                keyExtractor={(item) => item.id.toString()}
+                keyExtractor={(item, index) => `${item.media_type}-${item.id}-${index}`}
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.creditsList}
@@ -295,25 +341,48 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 15,
+    gap: 14,
   },
   loadingText: {
     color: Colors.textSecondary,
-    fontSize: 16,
+    fontSize: 13,
+    fontFamily: Fonts.GeistMono.Regular,
+    letterSpacing: 0.5,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 15,
+    paddingHorizontal: 40,
+    gap: 12,
+  },
+  errorTitle: {
+    color: Colors.text,
+    fontSize: 18,
+    fontFamily: Fonts.GeistMono.Bold,
   },
   errorText: {
     color: Colors.textSecondary,
-    fontSize: 16,
+    fontSize: 14,
+    fontFamily: Fonts.GeistMono.Regular,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  retryButton: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  retryButtonText: {
+    color: '#000',
+    fontSize: 14,
+    fontFamily: Fonts.GeistMono.Bold,
   },
   heroContainer: {
     position: 'relative',
-    height: height * 0.6,
+    height: HERO_HEIGHT,
   },
   heroImage: {
     width: '100%',
@@ -325,20 +394,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   gradient: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: '50%',
+    ...StyleSheet.absoluteFillObject,
   },
   backButton: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 50 : 40,
-    left: 20,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: 25,
-    width: 45,
-    height: 45,
+    left: 16,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 8,
+    width: 40,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
@@ -346,123 +410,117 @@ const styles = StyleSheet.create({
   heroContent: {
     position: 'absolute',
     bottom: 20,
-    left: 20,
-    right: 20,
+    left: 16,
+    right: 16,
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 15,
-  },
-  profileImageContainer: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 8,
+    gap: 14,
   },
   profileImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 104,
+    height: 104,
+    borderRadius: 8,
     backgroundColor: Colors.surface,
-    borderWidth: 3,
-    borderColor: '#fff',
+  },
+  castPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   heroTextContainer: {
     flex: 1,
-    paddingBottom: 10,
+    paddingBottom: 4,
+  },
+  heroMetaLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
+  },
+  heroMetaText: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 11,
+    fontFamily: Fonts.GeistMono.Medium,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  heroMetaDot: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 11,
+    fontFamily: Fonts.GeistMono.Medium,
   },
   name: {
-    fontSize: 32,
+    fontSize: 26,
     fontFamily: Fonts.GeistMono.Bold,
     color: '#fff',
-    marginBottom: 6,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    lineHeight: 32,
+    letterSpacing: -0.4,
+    textShadowColor: 'rgba(0, 0, 0, 0.65)',
     textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  character: {
-    fontSize: 16,
-    fontFamily: Fonts.GeistMono.Regular,
-    color: '#fff',
-    opacity: 0.9,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textShadowRadius: 6,
   },
   content: {
-    padding: 20,
+    paddingHorizontal: 16,
+    paddingTop: 8,
   },
   section: {
-    marginBottom: 30,
+    marginBottom: 32,
+  },
+  sectionLabel: {
+    fontSize: 13,
+    fontFamily: Fonts.GeistMono.SemiBold,
+    color: Colors.textSecondary,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    marginBottom: 12,
   },
   bio: {
     color: Colors.textSecondary,
-    fontSize: 15,
-    fontFamily: Fonts.GeistMono.Regular,
-    lineHeight: 24,
-  },
-  popularitySection: {
-    backgroundColor: Colors.surface,
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 30,
-    alignItems: 'center',
-  },
-  popularityLabel: {
-    color: Colors.textSecondary,
     fontSize: 14,
     fontFamily: Fonts.GeistMono.Regular,
-    marginBottom: 8,
+    lineHeight: 22,
   },
-  popularityText: {
-    color: Colors.accent,
-    fontSize: 32,
-    fontFamily: Fonts.GeistMono.Bold,
-  },
-  infoGrid: {
-    marginBottom: 30,
+  infoList: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
   },
   infoItem: {
-    flexDirection: 'row',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
+    gap: 4,
   },
   infoLabel: {
     color: Colors.textSecondary,
-    fontSize: 15,
-    fontFamily: Fonts.GeistMono.Regular,
-    width: 140,
+    fontSize: 11,
+    fontFamily: Fonts.GeistMono.Medium,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   infoValue: {
     color: Colors.text,
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: Fonts.GeistMono.Regular,
-    flex: 1,
+    lineHeight: 20,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontFamily: Fonts.GeistMono.Bold,
-    color: Colors.text,
+    marginBottom: 12,
   },
   seeAllText: {
     color: Colors.accent,
-    fontSize: 16,
+    fontSize: 12,
     fontFamily: Fonts.GeistMono.SemiBold,
   },
   creditsList: {
-    paddingRight: 20,
+    paddingRight: 8,
   },
   creditCard: {
-    width: 140,
-    height: 210,
-    marginRight: 12,
+    width: CREDIT_WIDTH,
+    height: CREDIT_HEIGHT,
+    marginRight: 10,
     borderRadius: 8,
     overflow: 'hidden',
     backgroundColor: Colors.surface,
@@ -471,7 +529,23 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  creditGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+    paddingTop: 24,
+    justifyContent: 'flex-end',
+  },
+  creditTitle: {
+    color: '#fff',
+    fontSize: 12,
+    fontFamily: Fonts.GeistMono.Medium,
+    lineHeight: 15,
+  },
   bottomSpacer: {
-    height: 40,
+    height: 48,
   },
 });

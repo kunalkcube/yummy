@@ -10,20 +10,22 @@ interface ProviderChipsProps {
   onSelectProvider: (providerId: number | null) => void;
 }
 
-export const ProviderChips = ({ providers, selectedProvider, onSelectProvider }: ProviderChipsProps) => {
+export const ProviderChips = ({
+  providers,
+  selectedProvider,
+  onSelectProvider,
+}: ProviderChipsProps) => {
   return (
     <View style={styles.container}>
-      <ScrollView 
-        horizontal 
+      <ScrollView
+        horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
         <TouchableOpacity
-          style={[
-            styles.chip,
-            selectedProvider === null && styles.chipSelected,
-          ]}
+          style={[styles.chip, selectedProvider === null && styles.chipSelected]}
           onPress={() => onSelectProvider(null)}
+          activeOpacity={0.8}
         >
           <View style={styles.allChipIcon}>
             <Text style={styles.allChipText}>ALL</Text>
@@ -32,7 +34,7 @@ export const ProviderChips = ({ providers, selectedProvider, onSelectProvider }:
 
         {providers.map((provider) => {
           const logoUrl = `https://image.tmdb.org/t/p/original${provider.logo_path}`;
-          
+
           return (
             <TouchableOpacity
               key={provider.id}
@@ -42,12 +44,9 @@ export const ProviderChips = ({ providers, selectedProvider, onSelectProvider }:
                 selectedProvider === provider.id && { borderColor: provider.color },
               ]}
               onPress={() => onSelectProvider(provider.id)}
+              activeOpacity={0.8}
             >
-              <Image 
-                source={{ uri: logoUrl }} 
-                style={styles.providerLogo}
-                resizeMode="contain"
-              />
+              <Image source={{ uri: logoUrl }} style={styles.providerLogo} resizeMode="contain" />
             </TouchableOpacity>
           );
         })}
@@ -58,20 +57,20 @@ export const ProviderChips = ({ providers, selectedProvider, onSelectProvider }:
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   scrollContent: {
-    paddingHorizontal: 15,
-    gap: 12,
+    paddingHorizontal: 16,
+    gap: 10,
   },
   chip: {
     alignItems: 'center',
     justifyContent: 'center',
-    width: 70,
-    height: 70,
-    borderRadius: 12,
+    width: 56,
+    height: 56,
+    borderRadius: 8,
     backgroundColor: Colors.surface,
-    borderWidth: 3,
+    borderWidth: 1.5,
     borderColor: 'transparent',
   },
   chipSelected: {
@@ -79,21 +78,22 @@ const styles = StyleSheet.create({
     borderColor: Colors.accent,
   },
   allChipIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 36,
+    height: 36,
+    borderRadius: 6,
     backgroundColor: Colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
   allChipText: {
     color: Colors.text,
-    fontSize: 12,
+    fontSize: 10,
     fontFamily: Fonts.GeistMono.Bold,
+    letterSpacing: 0.5,
   },
   providerLogo: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 6,
   },
 });

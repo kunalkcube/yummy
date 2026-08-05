@@ -1,10 +1,10 @@
-import { IptvChannel } from '@/constants/iptv';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
+import { IptvChannel } from '@/constants/iptv';
 import { useSettings } from '@/contexts/SettingsContext';
 import { fetchIptvChannels } from '@/hooks/useIptv';
 import { useRouter } from 'expo-router';
-import { Heart, Radio, Search, Star, Trash2 } from 'lucide-react-native';
+import { AlertCircle, Heart, Radio, Search, Star, Trash2, X } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,11 +17,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const ALL_GROUPS = 'All';
 
 export default function IptvScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const {
     iptvPlaylists,
     iptvChannels,
@@ -44,30 +46,35 @@ export default function IptvScreen() {
     [iptvPlaylists, selectedPlaylistId]
   );
 
-  const loadPlaylist = useCallback(async (playlistId: string) => {
-    const playlist = iptvPlaylists.find((item) => item.id === playlistId);
-    if (!playlist) return;
+  const loadPlaylist = useCallback(
+    async (playlistId: string) => {
+      const playlist = iptvPlaylists.find((item) => item.id === playlistId);
+      if (!playlist) return;
 
-    const requestId = playlistRequestId.current + 1;
-    playlistRequestId.current = requestId;
-    setLoading(true);
-    setError(null);
-    setSelectedGroup(ALL_GROUPS);
+      const requestId = playlistRequestId.current + 1;
+      playlistRequestId.current = requestId;
+      setLoading(true);
+      setError(null);
+      setSelectedGroup(ALL_GROUPS);
 
-    try {
-      const loadedChannels = await fetchIptvChannels(playlist);
-      if (requestId !== playlistRequestId.current) return;
-      setChannels(loadedChannels);
-    } catch (loadError) {
-      if (requestId !== playlistRequestId.current) return;
-      setChannels([]);
-      setError(loadError instanceof Error ? loadError.message : 'Unable to load this playlist.');
-    } finally {
-      if (requestId === playlistRequestId.current) {
-        setLoading(false);
+      try {
+        const loadedChannels = await fetchIptvChannels(playlist);
+        if (requestId !== playlistRequestId.current) return;
+        setChannels(loadedChannels);
+      } catch (loadError) {
+        if (requestId !== playlistRequestId.current) return;
+        setChannels([]);
+        setError(
+          loadError instanceof Error ? loadError.message : 'Unable to load this playlist.'
+        );
+      } finally {
+        if (requestId === playlistRequestId.current) {
+          setLoading(false);
+        }
       }
-    }
-  }, [iptvPlaylists]);
+    },
+    [iptvPlaylists]
+  );
 
   useEffect(() => {
     if (!selectedPlaylist && iptvPlaylists[0]) {
@@ -82,57 +89,84 @@ export default function IptvScreen() {
   }, [loadPlaylist, selectedPlaylist]);
 
   const groups = useMemo(
-    () => [ALL_GROUPS, ...Array.from(new Set(channels.map((channel) => channel.group))).sort((a, b) => a.localeCompare(b))],
+    () => [
+      ALL_GROUPS,
+      ...Array.from(new Set(channels.map((channel) => channel.group))).sort((a, b) =>
+        a.localeCompare(b)
+      ),
+    ],
     [channels]
   );
 
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const filteredChannels = useMemo(
-    () => channels.filter((channel) => {
-      const matchesGroup = selectedGroup === ALL_GROUPS || channel.group === selectedGroup;
-      const matchesQuery = !normalizedQuery || [channel.name, channel.group, channel.tvgId]
-        .filter(Boolean)
-        .some((value) => value?.toLocaleLowerCase().includes(normalizedQuery));
-      return matchesGroup && matchesQuery;
-    }),
+    () =>
+      channels.filter((channel) => {
+        const matchesGroup = selectedGroup === ALL_GROUPS || channel.group === selectedGroup;
+        const matchesQuery =
+          !normalizedQuery ||
+          [channel.name, channel.group, channel.tvgId]
+            .filter(Boolean)
+            .some((value) => value?.toLocaleLowerCase().includes(normalizedQuery));
+        return matchesGroup && matchesQuery;
+      }),
     [channels, normalizedQuery, selectedGroup]
   );
 
-  const favoriteIds = useMemo(() => new Set(iptvFavorites.map((channel) => channel.id)), [iptvFavorites]);
+  const favoriteIds = useMemo(
+    () => new Set(iptvFavorites.map((channel) => channel.id)),
+    [iptvFavorites]
+  );
   const favoritesForPlaylist = useMemo(
     () => iptvFavorites.filter((channel) => channel.playlistId === selectedPlaylist?.id),
     [iptvFavorites, selectedPlaylist?.id]
   );
   const recentsForPlaylist = useMemo(
-    () => iptvRecentChannels.filter((channel) => channel.playlistId === selectedPlaylist?.id || channel.isCustom),
+    () =>
+      iptvRecentChannels.filter(
+        (channel) => channel.playlistId === selectedPlaylist?.id || channel.isCustom
+      ),
     [iptvRecentChannels, selectedPlaylist?.id]
   );
 
-  const openChannel = useCallback((channel: IptvChannel) => {
-    void recordIptvRecent(channel);
-    router.push({
-      pathname: '/iptv-player',
-      params: {
-        channelName: channel.name,
-        streamUrl: channel.streamUrl,
-      },
-    });
-  }, [recordIptvRecent, router]);
-
-  const renderLogo = (channel: IptvChannel, compact = false) => (
-    channel.logoUrl ? (
-      <Image source={{ uri: channel.logoUrl }} style={compact ? styles.quickLogo : styles.logo} resizeMode="contain" />
-    ) : (
-      <View style={[compact ? styles.quickLogo : styles.logo, styles.logoFallback]}>
-        <Radio size={compact ? 18 : 22} color={Colors.accent} />
-      </View>
-    )
+  const openChannel = useCallback(
+    (channel: IptvChannel) => {
+      void recordIptvRecent(channel);
+      router.push({
+        pathname: '/iptv-player',
+        params: {
+          channelName: channel.name,
+          streamUrl: channel.streamUrl,
+        },
+      });
+    },
+    [recordIptvRecent, router]
   );
 
+  const renderLogo = (channel: IptvChannel, compact = false) =>
+    channel.logoUrl ? (
+      <Image
+        source={{ uri: channel.logoUrl }}
+        style={compact ? styles.quickLogo : styles.logo}
+        resizeMode="contain"
+      />
+    ) : (
+      <View style={[compact ? styles.quickLogo : styles.logo, styles.logoFallback]}>
+        <Radio size={compact ? 16 : 20} color={Colors.accent} />
+      </View>
+    );
+
   const renderQuickChannel = (channel: IptvChannel) => (
-    <TouchableOpacity key={channel.id} style={styles.quickChannel} onPress={() => openChannel(channel)}>
+    <TouchableOpacity
+      key={channel.id}
+      style={styles.quickChannel}
+      onPress={() => openChannel(channel)}
+      activeOpacity={0.85}
+    >
       {renderLogo(channel, true)}
-      <Text style={styles.quickChannelName} numberOfLines={2}>{channel.name}</Text>
+      <Text style={styles.quickChannelName} numberOfLines={2}>
+        {channel.name}
+      </Text>
     </TouchableOpacity>
   );
 
@@ -140,33 +174,48 @@ export default function IptvScreen() {
     const isFavorite = favoriteIds.has(item.id);
 
     return (
-      <View style={styles.channelCard}>
+      <View style={styles.channelRow}>
         <TouchableOpacity
           style={styles.channelPressable}
           onPress={() => openChannel(item)}
           accessibilityLabel={`Play ${item.name}`}
+          activeOpacity={0.85}
         >
           {renderLogo(item)}
           <View style={styles.channelInfo}>
-            <Text style={styles.channelName} numberOfLines={1}>{item.name}</Text>
-            <Text style={styles.channelGroup} numberOfLines={1}>{item.group}</Text>
+            <Text style={styles.channelName} numberOfLines={1}>
+              {item.name}
+            </Text>
+            <Text style={styles.channelGroup} numberOfLines={1}>
+              {item.group}
+            </Text>
           </View>
         </TouchableOpacity>
         <View style={styles.channelActions}>
           <TouchableOpacity
-            style={styles.favoriteButton}
+            style={styles.actionButton}
             onPress={() => void toggleIptvFavorite(item)}
-            accessibilityLabel={isFavorite ? `Remove ${item.name} from favorites` : `Add ${item.name} to favorites`}
+            accessibilityLabel={
+              isFavorite
+                ? `Remove ${item.name} from favorites`
+                : `Add ${item.name} to favorites`
+            }
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Heart size={20} color={isFavorite ? Colors.accent : Colors.textSecondary} fill={isFavorite ? Colors.accent : 'transparent'} />
+            <Heart
+              size={18}
+              color={isFavorite ? Colors.accent : Colors.textSecondary}
+              fill={isFavorite ? Colors.accent : 'transparent'}
+            />
           </TouchableOpacity>
           {item.isCustom && (
             <TouchableOpacity
-              style={styles.removeChannelButton}
+              style={styles.actionButton}
               onPress={() => removeIptvChannel(item.id)}
               accessibilityLabel={`Remove ${item.name}`}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Trash2 size={20} color={Colors.textSecondary} />
+              <Trash2 size={18} color={Colors.textSecondary} />
             </TouchableOpacity>
           )}
         </View>
@@ -176,46 +225,65 @@ export default function IptvScreen() {
 
   const listHeader = (
     <>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>IPTV</Text>
-        <Text style={styles.headerSubtitle}>Live public channels from your saved playlists</Text>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <Text style={styles.headerLabel}>IPTV</Text>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipList}>
-        {iptvPlaylists.map((playlist) => (
-          <TouchableOpacity
-            key={playlist.id}
-            style={[styles.playlistChip, selectedPlaylist?.id === playlist.id && styles.playlistChipActive]}
-            onPress={() => setSelectedPlaylistId(playlist.id)}
-          >
-            <Text style={[styles.playlistChipText, selectedPlaylist?.id === playlist.id && styles.playlistChipTextActive]}>
-              {playlist.name}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipList}
+      >
+        {iptvPlaylists.map((playlist) => {
+          const active = selectedPlaylist?.id === playlist.id;
+          return (
+            <TouchableOpacity
+              key={playlist.id}
+              style={[styles.playlistChip, active && styles.playlistChipActive]}
+              onPress={() => setSelectedPlaylistId(playlist.id)}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.playlistChipText, active && styles.playlistChipTextActive]}>
+                {playlist.name}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
       <View style={styles.searchContainer}>
-        <Search size={19} color={Colors.textSecondary} />
+        <Search size={18} color={Colors.textSecondary} />
         <TextInput
           style={styles.searchInput}
           value={query}
           onChangeText={setQuery}
-          placeholder="Search channels"
+          placeholder="Search channels..."
           placeholderTextColor={Colors.textSecondary}
           autoCapitalize="none"
           autoCorrect={false}
           accessibilityLabel="Search IPTV channels"
         />
+        {query.length > 0 && (
+          <TouchableOpacity
+            onPress={() => setQuery('')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <X size={18} color={Colors.textSecondary} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {favoritesForPlaylist.length > 0 && (
         <View style={styles.quickSection}>
           <View style={styles.sectionHeading}>
-            <Heart size={18} color={Colors.accent} fill={Colors.accent} />
-            <Text style={styles.sectionTitle}>Favorites</Text>
+            <Heart size={14} color={Colors.accent} fill={Colors.accent} />
+            <Text style={styles.sectionLabel}>Favorites</Text>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickList}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.quickList}
+          >
             {favoritesForPlaylist.map(renderQuickChannel)}
           </ScrollView>
         </View>
@@ -224,11 +292,15 @@ export default function IptvScreen() {
       {iptvChannels.length > 0 && (
         <View style={styles.quickSection}>
           <View style={styles.sectionHeading}>
-            <Radio size={18} color={Colors.accent} />
-            <Text style={styles.sectionTitle}>Custom Channels</Text>
+            <Radio size={14} color={Colors.accent} />
+            <Text style={styles.sectionLabel}>Custom</Text>
             <Text style={styles.resultCount}>{iptvChannels.length}</Text>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickList}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.quickList}
+          >
             {iptvChannels.map(renderQuickChannel)}
           </ScrollView>
         </View>
@@ -237,30 +309,48 @@ export default function IptvScreen() {
       {recentsForPlaylist.length > 0 && (
         <View style={styles.quickSection}>
           <View style={styles.sectionHeading}>
-            <Star size={18} color={Colors.accent} />
-            <Text style={styles.sectionTitle}>Recently watched</Text>
+            <Star size={14} color={Colors.accent} />
+            <Text style={styles.sectionLabel}>Recent</Text>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickList}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.quickList}
+          >
             {recentsForPlaylist.map(renderQuickChannel)}
           </ScrollView>
         </View>
       )}
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipList}>
-        {groups.map((group) => (
-          <TouchableOpacity
-            key={group}
-            style={[styles.groupChip, selectedGroup === group && styles.groupChipActive]}
-            onPress={() => setSelectedGroup(group)}
-          >
-            <Text style={[styles.groupChipText, selectedGroup === group && styles.groupChipTextActive]}>{group}</Text>
-          </TouchableOpacity>
-        ))}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipList}
+      >
+        {groups.map((group) => {
+          const active = selectedGroup === group;
+          return (
+            <TouchableOpacity
+              key={group}
+              style={[styles.groupChip, active && styles.groupChipActive]}
+              onPress={() => setSelectedGroup(group)}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.groupChipText, active && styles.groupChipTextActive]}>
+                {group}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
       <View style={styles.resultHeader}>
-        <Text style={styles.resultTitle}>{selectedGroup === ALL_GROUPS ? 'Channels' : selectedGroup}</Text>
-        <Text style={styles.resultCount}>{filteredChannels.length}</Text>
+        <Text style={styles.sectionLabel}>
+          {selectedGroup === ALL_GROUPS ? 'Channels' : selectedGroup}
+        </Text>
+        <Text style={styles.resultCount}>
+          {filteredChannels.length} channel{filteredChannels.length === 1 ? '' : 's'}
+        </Text>
       </View>
     </>
   );
@@ -269,7 +359,9 @@ export default function IptvScreen() {
     return (
       <View style={styles.stateContainer}>
         <ActivityIndicator size="large" color={Colors.accent} />
-        <Text style={styles.stateText}>Loading {selectedPlaylist?.name ?? 'playlist'}...</Text>
+        <Text style={styles.stateText}>
+          Loading {selectedPlaylist?.name ?? 'playlist'}...
+        </Text>
       </View>
     );
   }
@@ -277,10 +369,15 @@ export default function IptvScreen() {
   if (error) {
     return (
       <View style={styles.stateContainer}>
+        <AlertCircle size={40} color={Colors.textSecondary} />
         <Text style={styles.errorTitle}>Playlist unavailable</Text>
         <Text style={styles.stateText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={() => selectedPlaylist && void loadPlaylist(selectedPlaylist.id)}>
-          <Text style={styles.retryButtonText}>Try again</Text>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={() => selectedPlaylist && void loadPlaylist(selectedPlaylist.id)}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.retryButtonText}>Try Again</Text>
         </TouchableOpacity>
       </View>
     );
@@ -295,14 +392,17 @@ export default function IptvScreen() {
       ListHeaderComponent={listHeader}
       contentContainerStyle={styles.listContent}
       showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
       initialNumToRender={16}
       windowSize={7}
       maxToRenderPerBatch={16}
       ListEmptyComponent={
         <View style={styles.emptyContainer}>
-          <Radio size={48} color={Colors.textSecondary} />
+          <Radio size={40} color={Colors.textSecondary} />
           <Text style={styles.emptyTitle}>No channels found</Text>
-          <Text style={styles.stateText}>Try another group or a different search term.</Text>
+          <Text style={styles.stateText}>
+            Try another group or a different search term.
+          </Text>
         </View>
       }
     />
@@ -315,24 +415,18 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   listContent: {
-    paddingBottom: 36,
+    paddingBottom: 48,
   },
   header: {
-    paddingTop: 60,
     paddingHorizontal: 16,
-    paddingBottom: 18,
+    paddingBottom: 12,
   },
-  headerTitle: {
-    color: Colors.text,
-    fontFamily: Fonts.GeistMono.Bold,
-    fontSize: 32,
-  },
-  headerSubtitle: {
-    color: Colors.textSecondary,
-    fontFamily: Fonts.GeistMono.Regular,
+  headerLabel: {
     fontSize: 13,
-    lineHeight: 19,
-    marginTop: 6,
+    fontFamily: Fonts.GeistMono.SemiBold,
+    color: Colors.textSecondary,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
   },
   chipList: {
     gap: 8,
@@ -341,14 +435,14 @@ const styles = StyleSheet.create({
   },
   playlistChip: {
     backgroundColor: Colors.surface,
-    borderColor: Colors.border,
-    borderRadius: 18,
-    borderWidth: 1,
-    paddingHorizontal: 13,
-    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   playlistChipActive: {
-    backgroundColor: `${Colors.accent}22`,
+    backgroundColor: Colors.card,
     borderColor: Colors.accent,
   },
   playlistChipText: {
@@ -362,19 +456,20 @@ const styles = StyleSheet.create({
   searchContainer: {
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: 10,
+    borderRadius: 8,
     flexDirection: 'row',
     gap: 10,
     marginBottom: 18,
     marginHorizontal: 16,
     paddingHorizontal: 14,
+    height: 48,
   },
   searchInput: {
     color: Colors.text,
     flex: 1,
     fontFamily: Fonts.GeistMono.Regular,
     fontSize: 15,
-    height: 48,
+    paddingVertical: 0,
   },
   quickSection: {
     marginBottom: 18,
@@ -383,13 +478,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 10,
+    marginBottom: 12,
     paddingHorizontal: 16,
   },
-  sectionTitle: {
-    color: Colors.text,
-    fontFamily: Fonts.GeistMono.Bold,
-    fontSize: 17,
+  sectionLabel: {
+    color: Colors.textSecondary,
+    fontFamily: Fonts.GeistMono.SemiBold,
+    fontSize: 13,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
   },
   quickList: {
     gap: 10,
@@ -397,17 +494,14 @@ const styles = StyleSheet.create({
   },
   quickChannel: {
     alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: 10,
-    padding: 10,
-    width: 100,
+    width: 88,
   },
   quickLogo: {
-    backgroundColor: Colors.card,
+    backgroundColor: Colors.surface,
     borderRadius: 8,
-    height: 48,
+    height: 56,
     marginBottom: 8,
-    width: 80,
+    width: 88,
   },
   quickChannelName: {
     color: Colors.text,
@@ -418,12 +512,15 @@ const styles = StyleSheet.create({
   },
   groupChip: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
     paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingVertical: 8,
   },
   groupChipActive: {
-    backgroundColor: Colors.accent,
+    borderColor: Colors.accent,
+    backgroundColor: Colors.card,
   },
   groupChipText: {
     color: Colors.textSecondary,
@@ -437,37 +534,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 12,
     paddingHorizontal: 16,
-  },
-  resultTitle: {
-    color: Colors.text,
-    fontFamily: Fonts.GeistMono.Bold,
-    fontSize: 20,
   },
   resultCount: {
     color: Colors.textSecondary,
-    fontFamily: Fonts.GeistMono.Regular,
-    fontSize: 12,
+    fontFamily: Fonts.GeistMono.Medium,
+    fontSize: 11,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
-  channelCard: {
+  channelRow: {
     alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: 10,
     flexDirection: 'row',
-    marginBottom: 8,
+    marginBottom: 4,
     marginHorizontal: 16,
-    minHeight: 72,
+    minHeight: 64,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
   },
   channelPressable: {
     alignItems: 'center',
     flex: 1,
     flexDirection: 'row',
     minWidth: 0,
-    padding: 10,
+    paddingVertical: 10,
   },
   logo: {
-    backgroundColor: Colors.card,
+    backgroundColor: Colors.surface,
     borderRadius: 8,
     height: 48,
     width: 64,
@@ -496,12 +590,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  favoriteButton: {
-    padding: 16,
-  },
-  removeChannelButton: {
-    padding: 16,
-    paddingLeft: 4,
+  actionButton: {
+    padding: 12,
   },
   stateContainer: {
     alignItems: 'center',
@@ -514,24 +604,24 @@ const styles = StyleSheet.create({
   stateText: {
     color: Colors.textSecondary,
     fontFamily: Fonts.GeistMono.Regular,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 13,
+    lineHeight: 20,
     textAlign: 'center',
   },
   errorTitle: {
     color: Colors.text,
     fontFamily: Fonts.GeistMono.Bold,
-    fontSize: 22,
+    fontSize: 16,
   },
   retryButton: {
-    backgroundColor: Colors.accent,
-    borderRadius: 9,
-    marginTop: 4,
-    paddingHorizontal: 18,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    marginTop: 8,
+    paddingHorizontal: 24,
     paddingVertical: 12,
   },
   retryButtonText: {
-    color: Colors.text,
+    color: '#000',
     fontFamily: Fonts.GeistMono.Bold,
     fontSize: 14,
   },
@@ -544,6 +634,6 @@ const styles = StyleSheet.create({
   emptyTitle: {
     color: Colors.text,
     fontFamily: Fonts.GeistMono.Bold,
-    fontSize: 20,
+    fontSize: 16,
   },
 });

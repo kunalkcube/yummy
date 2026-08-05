@@ -1,7 +1,6 @@
 import { Colors } from '@/constants/colors';
 import { Tabs } from 'expo-router';
 import { BookOpen, Home, Radio, Search, Settings } from 'lucide-react-native';
-import { StyleSheet } from 'react-native';
 
 export default function TabLayout() {
   return (

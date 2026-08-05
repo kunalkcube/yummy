@@ -7,7 +7,7 @@ import { useSettings } from '@/contexts/SettingsContext';
 import { Movie, useTMDB } from '@/hooks/useTMDB';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Calendar, Film, Play, Sparkles, Star, TrendingUp, Tv } from 'lucide-react-native';
+import { Film, Play, Sparkles, Star, TrendingUp, Tv } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,15 +17,19 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width, height } = Dimensions.get('window');
+const HERO_HEIGHT = height * 0.6;
 
 export default function HomeScreen() {
   const { fetchTrending, fetchPopular } = useTMDB();
   const { tmdbApiKey } = useSettings();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [selectedProvider, setSelectedProvider] = useState<number | null>(null);
   const [trending, setTrending] = useState<Movie[]>([]);
   const [popularMovies, setPopularMovies] = useState<Movie[]>([]);
@@ -36,20 +40,17 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log('HomeScreen: tmdbApiKey changed:', tmdbApiKey ? 'SET' : 'NOT SET');
     loadContent();
   }, [tmdbApiKey, selectedProvider]);
 
   const loadContent = async () => {
-    console.log('HomeScreen: loadContent called, API key:', tmdbApiKey ? 'SET' : 'NOT SET');
     if (!tmdbApiKey) {
       setLoading(false);
       return;
     }
-    
+
     setLoading(true);
-    
-    // If provider is selected, only fetch provider-specific content
+
     if (selectedProvider) {
       const [moviesData, tvData] = await Promise.all([
         fetchPopular('movie', selectedProvider),
@@ -62,7 +63,6 @@ export default function HomeScreen() {
       setUpcomingMovies([]);
       setFeaturedMovie(moviesData[0] || null);
     } else {
-      // Show all content
       const [trendingData, moviesData, tvData, topRatedData, upcomingData] = await Promise.all([
         fetchTrending(),
         fetchPopular('movie'),
@@ -77,8 +77,7 @@ export default function HomeScreen() {
       setUpcomingMovies(upcomingData);
       setFeaturedMovie(trendingData[0] || moviesData[0] || null);
     }
-    
-    console.log('HomeScreen: Data loaded');
+
     setLoading(false);
   };
 
@@ -88,12 +87,14 @@ export default function HomeScreen() {
       const isBearer = tmdbApiKey.startsWith('eyJ') || tmdbApiKey.length > 100;
       const response = await fetch(
         `https://api.themoviedb.org/3/${type}/top_rated${!isBearer ? `?api_key=${tmdbApiKey}` : ''}`,
-        isBearer ? {
-          headers: {
-            accept: 'application/json',
-            Authorization: `Bearer ${tmdbApiKey}`,
-          },
-        } : undefined
+        isBearer
+          ? {
+              headers: {
+                accept: 'application/json',
+                Authorization: `Bearer ${tmdbApiKey}`,
+              },
+            }
+          : undefined
       );
       const data = await response.json();
       return data.results || [];
@@ -109,12 +110,14 @@ export default function HomeScreen() {
       const isBearer = tmdbApiKey.startsWith('eyJ') || tmdbApiKey.length > 100;
       const response = await fetch(
         `https://api.themoviedb.org/3/movie/upcoming${!isBearer ? `?api_key=${tmdbApiKey}` : ''}`,
-        isBearer ? {
-          headers: {
-            accept: 'application/json',
-            Authorization: `Bearer ${tmdbApiKey}`,
-          },
-        } : undefined
+        isBearer
+          ? {
+              headers: {
+                accept: 'application/json',
+                Authorization: `Bearer ${tmdbApiKey}`,
+              },
+            }
+          : undefined
       );
       const data = await response.json();
       return data.results || [];
@@ -130,7 +133,7 @@ export default function HomeScreen() {
 
   const getProviderName = () => {
     if (!selectedProvider) return null;
-    const provider = STREAMING_PROVIDERS.find(p => p.id === selectedProvider);
+    const provider = STREAMING_PROVIDERS.find((p) => p.id === selectedProvider);
     return provider?.name || 'Provider';
   };
 
@@ -143,10 +146,17 @@ export default function HomeScreen() {
     });
   };
 
+  const heroYear = (featuredMovie?.release_date || featuredMovie?.first_air_date)?.substring(0, 4);
+  const heroRating = featuredMovie?.vote_average
+    ? featuredMovie.vote_average.toFixed(1)
+    : null;
+  const heroLabel = selectedProvider ? getProviderName()?.toUpperCase() : 'TRENDING';
+
   if (!tmdbApiKey) {
     return (
       <View style={styles.container}>
         <View style={styles.emptyContainer}>
+          <Text style={styles.emptyLabel}>YUMMY</Text>
           <Text style={styles.emptyText}>Please set your TMDB API key in Settings</Text>
         </View>
       </View>
@@ -167,125 +177,126 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Featured Hero Section */}
         {featuredMovie && (
-          <TouchableOpacity 
-            style={styles.heroSection} 
-            activeOpacity={0.9}
+          <TouchableOpacity
+            style={styles.heroSection}
+            activeOpacity={0.95}
             onPress={handleFeaturedPress}
           >
             <Image
-              source={{ 
-                uri: featuredMovie.backdrop_path 
+              source={{
+                uri: featuredMovie.backdrop_path
                   ? `https://image.tmdb.org/t/p/original${featuredMovie.backdrop_path}`
-                  : `https://image.tmdb.org/t/p/w500${featuredMovie.poster_path}`
+                  : `https://image.tmdb.org/t/p/w500${featuredMovie.poster_path}`,
               }}
               style={styles.heroImage}
             />
             <LinearGradient
-              colors={['transparent', 'rgba(0,0,0,0.7)', Colors.background]}
+              colors={['rgba(0,0,0,0.35)', 'transparent', 'rgba(0,0,0,0.55)', Colors.background]}
+              locations={[0, 0.28, 0.62, 1]}
               style={styles.heroGradient}
             />
-            <View style={styles.heroContent}>
-              <View style={styles.trendingBadge}>
-                <TrendingUp size={16} color="#fff" />
-                <Text style={styles.trendingText}>Trending Now</Text>
+
+            <Text style={[styles.wordmark, { top: insets.top + 12 }]}>YUMMY</Text>
+
+            <Animated.View
+              entering={FadeInDown.duration(250)}
+              style={styles.heroContent}
+            >
+              <View style={styles.heroMetaLine}>
+                <Text style={styles.heroMetaText}>{heroLabel}</Text>
+                {heroRating && (
+                  <>
+                    <Text style={styles.heroMetaDot}>·</Text>
+                    <View style={styles.heroRating}>
+                      <Star size={10} color="#FFD700" fill="#FFD700" />
+                      <Text style={styles.heroMetaText}>{heroRating}</Text>
+                    </View>
+                  </>
+                )}
+                {heroYear && (
+                  <>
+                    <Text style={styles.heroMetaDot}>·</Text>
+                    <Text style={styles.heroMetaText}>{heroYear}</Text>
+                  </>
+                )}
               </View>
               <Text style={styles.heroTitle} numberOfLines={2}>
                 {featuredMovie.title || featuredMovie.name}
               </Text>
-              <View style={styles.heroMeta}>
-                {featuredMovie.vote_average && (
-                  <View style={styles.heroMetaItem}>
-                    <Star size={16} color="#FFD700" fill="#FFD700" />
-                    <Text style={styles.heroMetaText}>
-                      {featuredMovie.vote_average.toFixed(1)}
-                    </Text>
-                  </View>
-                )}
-                {(featuredMovie.release_date || featuredMovie.first_air_date) && (
-                  <View style={styles.heroMetaItem}>
-                    <Calendar size={16} color="#fff" />
-                    <Text style={styles.heroMetaText}>
-                      {(featuredMovie.release_date || featuredMovie.first_air_date)?.substring(0, 4)}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <TouchableOpacity style={styles.playButton} onPress={handleFeaturedPress}>
-                <Play size={20} color="#000" fill="#000" />
+              <TouchableOpacity
+                style={styles.playButton}
+                onPress={handleFeaturedPress}
+                activeOpacity={0.85}
+              >
+                <Play size={18} color="#000" fill="#000" />
                 <Text style={styles.playButtonText}>Watch Now</Text>
               </TouchableOpacity>
-            </View>
+            </Animated.View>
           </TouchableOpacity>
         )}
 
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionLabel}>
             {selectedProvider ? getProviderName() : 'Explore'}
           </Text>
-          <Text style={styles.headerSubtitle}>
-            {selectedProvider ? 'Available Content' : 'Discover amazing content'}
-          </Text>
         </View>
-        
+
         <ProviderChips
           providers={STREAMING_PROVIDERS}
           selectedProvider={selectedProvider}
           onSelectProvider={handleProviderSelect}
         />
-        
+
         {trending.length > 0 && (
-          <MovieRow 
-            title="Trending Now" 
-            movies={trending} 
-            icon={TrendingUp}
-          />
+          <MovieRow title="Trending Now" movies={trending} icon={TrendingUp} />
         )}
         {popularMovies.length > 0 && (
-          <MovieRow 
-            title={selectedProvider ? `${getProviderName()} Movies` : 'Popular Movies'} 
+          <MovieRow
+            title={selectedProvider ? `${getProviderName()} Movies` : 'Popular Movies'}
             movies={popularMovies}
             icon={Film}
             mediaType="movie"
           />
         )}
         {topRatedMovies.length > 0 && (
-          <MovieRow 
-            title="Top Rated Movies" 
+          <MovieRow
+            title="Top Rated Movies"
             movies={topRatedMovies}
             icon={Star}
             mediaType="movie"
           />
         )}
         {popularTV.length > 0 && (
-          <MovieRow 
-            title={selectedProvider ? `${getProviderName()} TV Shows` : 'Popular TV Shows'} 
+          <MovieRow
+            title={selectedProvider ? `${getProviderName()} TV Shows` : 'Popular TV Shows'}
             movies={popularTV}
             icon={Tv}
             mediaType="tv"
           />
         )}
         {upcomingMovies.length > 0 && (
-          <MovieRow 
-            title="Coming Soon" 
+          <MovieRow
+            title="Coming Soon"
             movies={upcomingMovies}
             icon={Sparkles}
             mediaType="movie"
           />
         )}
-        
-        {trending.length === 0 && popularMovies.length === 0 && popularTV.length === 0 && !loading && (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              {selectedProvider 
-                ? `No content found for ${getProviderName()}`
-                : 'No content loaded. Check console for errors.'}
-            </Text>
-          </View>
-        )}
-        
+
+        {trending.length === 0 &&
+          popularMovies.length === 0 &&
+          popularTV.length === 0 &&
+          !loading && (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>
+                {selectedProvider
+                  ? `No content found for ${getProviderName()}`
+                  : 'No content loaded. Check console for errors.'}
+              </Text>
+            </View>
+          )}
+
         <View style={styles.bottomSpacer} />
       </ScrollView>
     </View>
@@ -301,8 +312,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   heroSection: {
-    width: width,
-    height: height * 0.65,
+    width,
+    height: HERO_HEIGHT,
     position: 'relative',
   },
   heroImage: {
@@ -311,121 +322,118 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   heroGradient: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  wordmark: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: '70%',
+    left: 20,
+    fontSize: 15,
+    fontFamily: Fonts.GeistMono.Bold,
+    color: Colors.text,
+    letterSpacing: 4,
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   heroContent: {
     position: 'absolute',
-    bottom: 30,
+    bottom: 28,
     left: 20,
     right: 20,
   },
-  trendingBadge: {
+  heroMetaLine: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.accent,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    alignSelf: 'flex-start',
-    marginBottom: 15,
-    gap: 6,
-  },
-  trendingText: {
-    color: '#fff',
-    fontSize: 12,
-    fontFamily: Fonts.GeistMono.Bold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  heroTitle: {
-    fontSize: 36,
-    fontFamily: Fonts.GeistMono.Bold,
-    color: '#fff',
-    marginBottom: 12,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
-  },
-  heroMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 20,
-    marginBottom: 20,
-  },
-  heroMetaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    gap: 8,
+    marginBottom: 10,
   },
   heroMetaText: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 11,
+    fontFamily: Fonts.GeistMono.Medium,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  heroMetaDot: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 11,
+    fontFamily: Fonts.GeistMono.Medium,
+  },
+  heroRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  heroTitle: {
+    fontSize: 34,
+    fontFamily: Fonts.GeistMono.Bold,
     color: '#fff',
-    fontSize: 16,
-    fontFamily: Fonts.GeistMono.SemiBold,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    marginBottom: 18,
+    lineHeight: 40,
+    letterSpacing: -0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.65)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
   },
   playButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#fff',
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 30,
+    paddingVertical: 13,
+    paddingHorizontal: 26,
+    borderRadius: 8,
     alignSelf: 'flex-start',
-    gap: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    gap: 8,
   },
   playButtonText: {
     color: '#000',
-    fontSize: 16,
-    fontFamily: Fonts.GeistMono.Bold,
-  },
-  header: {
-    paddingTop: 30,
-    paddingBottom: 15,
-    paddingHorizontal: 15,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontFamily: Fonts.GeistMono.Bold,
-    color: Colors.text,
-    marginBottom: 5,
-  },
-  headerSubtitle: {
     fontSize: 14,
-    fontFamily: Fonts.GeistMono.Regular,
+    fontFamily: Fonts.GeistMono.Bold,
+    letterSpacing: 0.3,
+  },
+  sectionHeader: {
+    paddingTop: 8,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
+  },
+  sectionLabel: {
+    fontSize: 13,
+    fontFamily: Fonts.GeistMono.SemiBold,
     color: Colors.textSecondary,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-    marginTop: 50,
+    padding: 24,
+    marginTop: 48,
+    minHeight: 200,
+  },
+  emptyLabel: {
+    fontSize: 14,
+    fontFamily: Fonts.GeistMono.Bold,
+    color: Colors.accent,
+    letterSpacing: 4,
+    marginBottom: 16,
   },
   emptyText: {
-    color: Colors.text,
-    fontSize: 16,
+    color: Colors.textSecondary,
+    fontSize: 14,
     fontFamily: Fonts.GeistMono.Regular,
     textAlign: 'center',
+    lineHeight: 22,
   },
   loadingText: {
     color: Colors.textSecondary,
-    fontSize: 16,
+    fontSize: 13,
     fontFamily: Fonts.GeistMono.Regular,
-    marginTop: 10,
+    marginTop: 14,
+    letterSpacing: 0.5,
   },
   bottomSpacer: {
-    height: 40,
+    height: 48,
   },
 });

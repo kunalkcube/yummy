@@ -6,10 +6,16 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { X } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
-// Ad-blocking JavaScript to inject into the WebView
 const hideAdsJS = `
   (function() {
     const css = 'iframe[src*="ads"], .ad-container, #pop-overlay { display: none !important; }';
@@ -18,8 +24,7 @@ const hideAdsJS = `
     style.type = 'text/css';
     style.appendChild(document.createTextNode(css));
     head.appendChild(style);
-    
-    // Auto-click the play button if it's stuck behind an invisible ad div
+
     setInterval(() => {
       const overlays = document.querySelectorAll('div[style*="z-index: 9999"]');
       overlays.forEach(el => el.remove());
@@ -35,13 +40,14 @@ export default function PlayerScreen() {
     season?: string;
     episode?: string;
   }>();
-  
+
   const { id, type, title } = params;
   const season = params.season || '1';
   const episode = params.episode || '1';
-  
+
   const { streamUrl, streamProvider } = useSettings();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [controlsVisible, setControlsVisible] = useState(true);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -58,56 +64,28 @@ export default function PlayerScreen() {
     };
   }, []);
 
-  // Debug logging
   useEffect(() => {
-    console.log('Player Screen - Params:', { id, type, title, season, episode });
-    console.log('Player Screen - Type check:', type === 'movie' ? 'MOVIE' : 'TV SHOW');
-  }, [id, type, title, season, episode]);
-
-  useEffect(() => {
-    // Lock to landscape on mount
     ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-
-    // Unlock on unmount
     return () => {
       ScreenOrientation.unlockAsync();
     };
   }, []);
 
   const constructStreamUrl = () => {
-    // Get the selected provider
     const provider = getStreamProvider(streamProvider);
-    
-    console.log('=== STREAM URL CONSTRUCTION ===');
-    console.log('Selected Provider ID:', streamProvider);
-    console.log('Provider Object:', provider);
-    console.log('Content Type:', type);
-    console.log('Content ID:', id);
-    console.log('Season:', season);
-    console.log('Episode:', episode);
-    
-    let url: string;
-    
+
     if (provider && provider.id !== 'custom') {
-      // Use the provider's URL construction method
-      url = provider.constructUrl({
+      return provider.constructUrl({
         type,
         id,
         season,
         episode,
       });
-      console.log('Using Provider URL Constructor');
-    } else {
-      // Use custom URL format (legacy support)
-      url = type === 'movie' 
-        ? `${streamUrl}/movie/${id}`
-        : `${streamUrl}/tv/${id}/${season}/${episode}`;
-      console.log('Using Custom URL Format');
     }
-    
-    console.log('Final Constructed URL:', url);
-    console.log('===============================');
-    return url;
+
+    return type === 'movie'
+      ? `${streamUrl}/movie/${id}`
+      : `${streamUrl}/tv/${id}/${season}/${episode}`;
   };
 
   const handleClose = () => {
@@ -116,7 +94,6 @@ export default function PlayerScreen() {
 
   const streamLink = constructStreamUrl();
 
-  // Extract domain from streamUrl for ad-blocking
   const getAllowedDomains = () => {
     try {
       const url = new URL(streamUrl);
@@ -127,46 +104,73 @@ export default function PlayerScreen() {
   };
 
   const allowedDomain = getAllowedDomains();
+  const metaLabel =
+    type === 'tv' ? `S${season}  ·  E${episode}` : type === 'movie' ? 'Movie' : '';
 
   return (
-    <View style={styles.container}>
-      {controlsVisible && (
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
-            <X size={24} color={Colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.title} numberOfLines={1}>{title}</Text>
-        </View>
-      )}
+    <TouchableWithoutFeedback onPress={showControls}>
+      <View style={styles.container}>
+        {controlsVisible && (
+          <View
+            style={[
+              styles.header,
+              {
+                paddingTop: Math.max(insets.top, 10),
+                paddingLeft: Math.max(insets.left, 12),
+                paddingRight: Math.max(insets.right, 12),
+              },
+            ]}
+            pointerEvents="box-none"
+          >
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={handleClose}
+              activeOpacity={0.85}
+              accessibilityLabel="Close player"
+            >
+              <X size={20} color="#fff" />
+            </TouchableOpacity>
+            <View style={styles.headerInfo}>
+              <Text style={styles.title} numberOfLines={1}>
+                {title}
+              </Text>
+              {metaLabel ? (
+                <Text style={styles.subtitle} numberOfLines={1}>
+                  {metaLabel}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        )}
 
-      <WebView
-        source={{ uri: streamLink }}
-        style={styles.webview}
-        javaScriptEnabled={true}
-        domStorageEnabled={true}
-        setSupportMultipleWindows={false}
-        allowsFullscreenVideo={true}
-        mediaPlaybackRequiresUserAction={false}
-        injectedJavaScript={hideAdsJS}
-        onShouldStartLoadWithRequest={(request) => {
-          const isMainPlayer = request.url.includes("vidsrc.to") ||
-                               request.url.includes("vidsrc.sbs") ||
-                               request.url.includes("videasy.net") ||
-                               request.url.includes(allowedDomain);
-          
-          if (isMainPlayer) return true;
-          
-          return false;
-        }}
-      />
-    </View>
+        <WebView
+          source={{ uri: streamLink }}
+          style={styles.webview}
+          javaScriptEnabled
+          domStorageEnabled
+          setSupportMultipleWindows={false}
+          allowsFullscreenVideo
+          mediaPlaybackRequiresUserAction={false}
+          injectedJavaScript={hideAdsJS}
+          onShouldStartLoadWithRequest={(request) => {
+            const isMainPlayer =
+              request.url.includes('vidsrc.to') ||
+              request.url.includes('vidsrc.sbs') ||
+              request.url.includes('videasy.net') ||
+              request.url.includes(allowedDomain);
+
+            return isMainPlayer;
+          }}
+        />
+      </View>
+    </TouchableWithoutFeedback>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#000',
   },
   header: {
     position: 'absolute',
@@ -175,21 +179,38 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingBottom: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
     zIndex: 10,
+    gap: 10,
   },
   closeButton: {
-    padding: 8,
-    marginRight: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerInfo: {
+    flex: 1,
+    minWidth: 0,
   },
   title: {
-    flex: 1,
     color: Colors.text,
-    fontSize: 16,
-    fontFamily: Fonts.GeistMono.Bold,
+    fontSize: 15,
+    fontFamily: Fonts.GeistMono.SemiBold,
+  },
+  subtitle: {
+    color: Colors.textSecondary,
+    fontSize: 11,
+    fontFamily: Fonts.GeistMono.Medium,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginTop: 2,
   },
   webview: {
     flex: 1,
+    backgroundColor: '#000',
   },
 });

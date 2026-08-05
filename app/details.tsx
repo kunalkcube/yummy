@@ -5,23 +5,25 @@ import { useSettings } from '@/contexts/SettingsContext';
 import { Movie, useTMDB } from '@/hooks/useTMDB';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { AlertCircle, ArrowLeft, Calendar, Film, Layers, Star, Tv, User } from 'lucide-react-native';
+import { AlertCircle, ArrowLeft, Film, Play, Star, Tv, User } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
   FlatList,
   Image,
-  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { height } = Dimensions.get('window');
+const HERO_HEIGHT = height * 0.48;
 
 interface Cast {
   id: number;
@@ -40,6 +42,7 @@ export default function DetailsScreen() {
   const { fetchDetails } = useTMDB();
   const { tmdbApiKey } = useSettings();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [details, setDetails] = useState<Movie | null>(null);
   const [cast, setCast] = useState<Cast[]>([]);
   const [recommendations, setRecommendations] = useState<Movie[]>([]);
@@ -56,13 +59,9 @@ export default function DetailsScreen() {
     setLoading(true);
     const data = await fetchDetails(Number(id), type);
     setDetails(data);
-    
-    // Fetch cast and recommendations
-    await Promise.all([
-      loadCast(),
-      loadRecommendations()
-    ]);
-    
+
+    await Promise.all([loadCast(), loadRecommendations()]);
+
     setLoading(false);
   };
 
@@ -70,18 +69,16 @@ export default function DetailsScreen() {
     if (!tmdbApiKey) return;
     try {
       const isBearer = tmdbApiKey.startsWith('eyJ') || tmdbApiKey.length > 100;
-      const config = isBearer
-        ? {
-            headers: {
-              accept: 'application/json',
-              Authorization: `Bearer ${tmdbApiKey}`,
-            },
-          }
-        : { params: { api_key: tmdbApiKey } };
-      
       const response = await fetch(
         `https://api.themoviedb.org/3/${type}/${id}/credits${!isBearer ? `?api_key=${tmdbApiKey}` : ''}`,
-        isBearer ? { headers: config.headers } : undefined
+        isBearer
+          ? {
+              headers: {
+                accept: 'application/json',
+                Authorization: `Bearer ${tmdbApiKey}`,
+              },
+            }
+          : undefined
       );
       const data = await response.json();
       setCast(data.cast || []);
@@ -96,12 +93,14 @@ export default function DetailsScreen() {
       const isBearer = tmdbApiKey.startsWith('eyJ') || tmdbApiKey.length > 100;
       const response = await fetch(
         `https://api.themoviedb.org/3/${type}/${id}/recommendations${!isBearer ? `?api_key=${tmdbApiKey}` : ''}`,
-        isBearer ? {
-          headers: {
-            accept: 'application/json',
-            Authorization: `Bearer ${tmdbApiKey}`,
-          },
-        } : undefined
+        isBearer
+          ? {
+              headers: {
+                accept: 'application/json',
+                Authorization: `Bearer ${tmdbApiKey}`,
+              },
+            }
+          : undefined
       );
       const data = await response.json();
       setRecommendations(data.results || []);
@@ -111,19 +110,16 @@ export default function DetailsScreen() {
   };
 
   const handleWatchNow = (season?: number, episode?: number) => {
-    const params: any = {
-      id,
-      type,
+    const params: Record<string, string> = {
+      id: String(id),
+      type: String(type),
       title: details?.title || details?.name || 'Unknown',
     };
 
-    // Only add season/episode for TV shows
     if (type === 'tv') {
       params.season = season?.toString() || '1';
       params.episode = episode?.toString() || '1';
     }
-
-    console.log('Navigating to player with params:', params);
 
     router.push({
       pathname: '/player',
@@ -152,10 +148,10 @@ export default function DetailsScreen() {
       <View style={styles.container}>
         <StatusBar barStyle="light-content" />
         <View style={styles.errorContainer}>
-          <AlertCircle size={64} color={Colors.textSecondary} />
-          <Text style={styles.errorTitle}>Oops!</Text>
-          <Text style={styles.errorText}>Failed to load details</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={loadDetails}>
+          <AlertCircle size={48} color={Colors.textSecondary} />
+          <Text style={styles.errorTitle}>Failed to load</Text>
+          <Text style={styles.errorText}>Couldn’t load this title. Try again.</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadDetails} activeOpacity={0.85}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
@@ -172,16 +168,27 @@ export default function DetailsScreen() {
     : null;
 
   const title = details.title || details.name || 'Unknown';
-  const year = details.release_date || details.first_air_date;
-  const rating = details.vote_average?.toFixed(1) || 'N/A';
+  const year = (details.release_date || details.first_air_date)?.substring(0, 4);
+  const rating = details.vote_average?.toFixed(1);
   const genres = (details as any).genres as Genre[] | undefined;
   const runtime = (details as any).runtime;
   const episodeRuntime = (details as any).episode_run_time?.[0];
+  const typeLabel = type === 'movie' ? 'Movie' : 'TV';
+  const runtimeLabel = runtime
+    ? `${runtime} min`
+    : episodeRuntime
+      ? `${episodeRuntime} min/ep`
+      : null;
+  const seasonsLabel =
+    type === 'tv' && details.number_of_seasons
+      ? `${details.number_of_seasons} Season${details.number_of_seasons > 1 ? 's' : ''}`
+      : null;
 
   const renderCastItem = ({ item }: { item: Cast }) => (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={styles.castCard}
       onPress={() => router.push({ pathname: '/person', params: { id: item.id } })}
+      activeOpacity={0.85}
     >
       {item.profile_path ? (
         <Image
@@ -190,11 +197,15 @@ export default function DetailsScreen() {
         />
       ) : (
         <View style={[styles.castImage, styles.castPlaceholder]}>
-          <User size={40} color={Colors.textSecondary} />
+          <User size={28} color={Colors.textSecondary} />
         </View>
       )}
-      <Text style={styles.castName} numberOfLines={1}>{item.name}</Text>
-      <Text style={styles.castCharacter} numberOfLines={1}>{item.character}</Text>
+      <Text style={styles.castName} numberOfLines={1}>
+        {item.name}
+      </Text>
+      <Text style={styles.castCharacter} numberOfLines={1}>
+        {item.character}
+      </Text>
     </TouchableOpacity>
   );
 
@@ -202,17 +213,18 @@ export default function DetailsScreen() {
     <TouchableOpacity
       style={styles.recommendationCard}
       onPress={() => router.push({ pathname: '/details', params: { id: item.id, type } })}
+      activeOpacity={0.85}
     >
       <Image
-        source={{ 
-          uri: item.poster_path 
+        source={{
+          uri: item.poster_path
             ? `https://image.tmdb.org/t/p/w342${item.poster_path}`
-            : 'https://via.placeholder.com/342x513?text=No+Image'
+            : 'https://via.placeholder.com/342x513?text=No+Image',
         }}
         style={styles.recommendationImage}
       />
       <LinearGradient
-        colors={['transparent', 'rgba(0,0,0,0.9)']}
+        colors={['transparent', 'rgba(0,0,0,0.85)']}
         style={styles.recommendationGradient}
       >
         <Text style={styles.recommendationTitle} numberOfLines={2}>
@@ -226,112 +238,111 @@ export default function DetailsScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Hero Section with Backdrop */}
         <View style={styles.heroContainer}>
           {backdropUrl ? (
             <Image source={{ uri: backdropUrl }} style={styles.backdrop} />
           ) : (
             <View style={[styles.backdrop, styles.placeholderBackdrop]}>
-              <Film size={80} color={Colors.textSecondary} />
+              <Film size={64} color={Colors.textSecondary} />
             </View>
           )}
-          
-          {/* Gradient Overlay */}
+
           <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.7)', Colors.background]}
+            colors={['rgba(0,0,0,0.4)', 'transparent', 'rgba(0,0,0,0.55)', Colors.background]}
+            locations={[0, 0.25, 0.65, 1]}
             style={styles.gradient}
           />
 
-          {/* Back Button */}
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <ArrowLeft size={24} color="#fff" />
+          <TouchableOpacity
+            style={[styles.backButton, { top: insets.top + 8 }]}
+            onPress={() => router.back()}
+            activeOpacity={0.85}
+            accessibilityLabel="Go back"
+          >
+            <ArrowLeft size={20} color="#fff" />
           </TouchableOpacity>
 
-          {/* Poster and Title Overlay */}
-          <View style={styles.heroContent}>
+          <Animated.View
+            entering={FadeInDown.duration(250)}
+            style={styles.heroContent}
+          >
             {posterUrl && (
-              <View style={styles.posterContainer}>
-                <Image source={{ uri: posterUrl }} style={styles.poster} />
-              </View>
+              <Image source={{ uri: posterUrl }} style={styles.poster} />
             )}
             <View style={styles.heroTextContainer}>
-              <Text style={styles.title} numberOfLines={2}>{title}</Text>
-              <View style={styles.heroMeta}>
+              <View style={styles.heroMetaLine}>
+                <Text style={styles.heroMetaText}>{typeLabel.toUpperCase()}</Text>
+                {rating && (
+                  <>
+                    <Text style={styles.heroMetaDot}>·</Text>
+                    <View style={styles.heroRating}>
+                      <Star size={10} color="#FFD700" fill="#FFD700" />
+                      <Text style={styles.heroMetaText}>{rating}</Text>
+                    </View>
+                  </>
+                )}
                 {year && (
-                  <View style={styles.metaChip}>
-                    <Calendar size={14} color="#fff" />
-                    <Text style={styles.metaChipText}>{year.substring(0, 4)}</Text>
-                  </View>
+                  <>
+                    <Text style={styles.heroMetaDot}>·</Text>
+                    <Text style={styles.heroMetaText}>{year}</Text>
+                  </>
                 )}
-                <View style={styles.metaChip}>
-                  <Star size={14} color="#FFD700" fill="#FFD700" />
-                  <Text style={styles.metaChipText}>{rating}</Text>
-                </View>
-                <View style={[styles.metaChip, type === 'movie' ? styles.movieChip : styles.tvChip]}>
-                  {type === 'movie' ? <Film size={14} color="#fff" /> : <Tv size={14} color="#fff" />}
-                  <Text style={styles.metaChipText}>{type === 'movie' ? 'Movie' : 'TV Show'}</Text>
-                </View>
-                {runtime && (
-                  <View style={styles.metaChip}>
-                    <Text style={styles.metaChipText}>{runtime} min</Text>
-                  </View>
-                )}
-                {episodeRuntime && (
-                  <View style={styles.metaChip}>
-                    <Text style={styles.metaChipText}>{episodeRuntime} min/ep</Text>
-                  </View>
+                {runtimeLabel && (
+                  <>
+                    <Text style={styles.heroMetaDot}>·</Text>
+                    <Text style={styles.heroMetaText}>{runtimeLabel}</Text>
+                  </>
                 )}
               </View>
+
+              <Text style={styles.title} numberOfLines={3}>
+                {title}
+              </Text>
+
               {genres && genres.length > 0 && (
-                <View style={styles.genresContainer}>
-                  {genres.slice(0, 3).map((genre) => (
-                    <View key={genre.id} style={styles.genreChip}>
-                      <Text style={styles.genreText}>{genre.name}</Text>
-                    </View>
-                  ))}
-                </View>
+                <Text style={styles.genreLine} numberOfLines={1}>
+                  {genres
+                    .slice(0, 3)
+                    .map((g) => g.name)
+                    .join('  ·  ')}
+                </Text>
               )}
             </View>
-          </View>
+          </Animated.View>
         </View>
 
-        {/* Content Section */}
         <View style={styles.content}>
-          {/* Additional Info */}
-          {type === 'tv' && details.number_of_seasons && (
-            <View style={styles.infoCard}>
-              <Layers size={20} color={Colors.accent} />
-              <Text style={styles.infoCardText}>
-                {details.number_of_seasons} Season{details.number_of_seasons > 1 ? 's' : ''}
-              </Text>
+          {seasonsLabel && (
+            <View style={styles.seasonsHint}>
+              {type === 'tv' ? (
+                <Tv size={14} color={Colors.accent} />
+              ) : (
+                <Film size={14} color={Colors.accent} />
+              )}
+              <Text style={styles.seasonsHintText}>{seasonsLabel}</Text>
             </View>
           )}
 
-          {/* Continue Watch Button */}
           <TouchableOpacity
-            style={styles.continueButton}
+            style={styles.watchButton}
             onPress={() => handleWatchNow()}
-            activeOpacity={0.9}
+            activeOpacity={0.85}
           >
-            <Text style={styles.continueButtonText}>Watch Now</Text>
+            <Play size={18} color="#000" fill="#000" />
+            <Text style={styles.watchButtonText}>Watch Now</Text>
           </TouchableOpacity>
 
-          {/* Overview Section */}
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIndicator} />
-              <Text style={styles.sectionTitle}>Overview</Text>
-            </View>
+            <Text style={styles.sectionLabel}>Overview</Text>
             <Text style={styles.overview}>
               {details.overview || 'No overview available for this title.'}
             </Text>
           </View>
 
-          {/* Cast Section */}
           {cast.length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitleSimple}>The cast</Text>
+                <Text style={styles.sectionLabel}>Cast</Text>
                 {cast.length > 10 && (
                   <TouchableOpacity onPress={() => setShowAllCast(!showAllCast)}>
                     <Text style={styles.seeAllText}>
@@ -351,13 +362,9 @@ export default function DetailsScreen() {
             </View>
           )}
 
-          {/* Seasons List for TV Shows */}
           {type === 'tv' && details.seasons && details.seasons.length > 0 && (
             <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionIndicator} />
-                <Text style={styles.sectionTitle}>Seasons & Episodes</Text>
-              </View>
+              <Text style={styles.sectionLabel}>Seasons & Episodes</Text>
               <SeasonsList
                 seasons={details.seasons}
                 tvId={id!}
@@ -367,21 +374,26 @@ export default function DetailsScreen() {
             </View>
           )}
 
-          {/* Recommendations Section */}
           {recommendations.length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitleSimple}>Maybe you like</Text>
+                <Text style={styles.sectionLabel}>More Like This</Text>
                 {recommendations.length > 10 && (
-                  <TouchableOpacity onPress={() => setShowAllRecommendations(!showAllRecommendations)}>
+                  <TouchableOpacity
+                    onPress={() => setShowAllRecommendations(!showAllRecommendations)}
+                  >
                     <Text style={styles.seeAllText}>
-                      {showAllRecommendations ? 'Show less' : `See all (${recommendations.length})`}
+                      {showAllRecommendations
+                        ? 'Show less'
+                        : `See all (${recommendations.length})`}
                     </Text>
                   </TouchableOpacity>
                 )}
               </View>
               <FlatList
-                data={showAllRecommendations ? recommendations : recommendations.slice(0, 10)}
+                data={
+                  showAllRecommendations ? recommendations : recommendations.slice(0, 10)
+                }
                 renderItem={renderRecommendationItem}
                 keyExtractor={(item) => item.id.toString()}
                 horizontal
@@ -391,7 +403,6 @@ export default function DetailsScreen() {
             </View>
           )}
 
-          {/* Bottom Spacing */}
           <View style={styles.bottomSpacer} />
         </View>
       </ScrollView>
@@ -408,46 +419,48 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 15,
+    gap: 14,
   },
   loadingText: {
     color: Colors.textSecondary,
-    fontSize: 16,
+    fontSize: 13,
     fontFamily: Fonts.GeistMono.Regular,
+    letterSpacing: 0.5,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 40,
-    gap: 15,
+    gap: 12,
   },
   errorTitle: {
     color: Colors.text,
-    fontSize: 24,
+    fontSize: 18,
     fontFamily: Fonts.GeistMono.Bold,
   },
   errorText: {
     color: Colors.textSecondary,
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: Fonts.GeistMono.Regular,
     textAlign: 'center',
+    lineHeight: 22,
   },
   retryButton: {
-    backgroundColor: Colors.accent,
-    paddingHorizontal: 30,
+    backgroundColor: '#fff',
+    paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 25,
-    marginTop: 10,
+    borderRadius: 8,
+    marginTop: 8,
   },
   retryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontFamily: Fonts.GeistMono.SemiBold,
+    color: '#000',
+    fontSize: 14,
+    fontFamily: Fonts.GeistMono.Bold,
   },
   heroContainer: {
     position: 'relative',
-    height: height * 0.5,
+    height: HERO_HEIGHT,
   },
   backdrop: {
     width: '100%',
@@ -459,20 +472,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   gradient: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: '70%',
+    ...StyleSheet.absoluteFillObject,
   },
   backButton: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 50 : 40,
-    left: 20,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: 25,
-    width: 45,
-    height: 45,
+    left: 16,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 8,
+    width: 40,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
@@ -480,190 +488,133 @@ const styles = StyleSheet.create({
   heroContent: {
     position: 'absolute',
     bottom: 20,
-    left: 20,
-    right: 20,
+    left: 16,
+    right: 16,
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 15,
-  },
-  posterContainer: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 8,
+    gap: 14,
   },
   poster: {
-    width: 120,
-    height: 180,
-    borderRadius: 12,
+    width: 104,
+    height: 156,
+    borderRadius: 8,
     backgroundColor: Colors.surface,
   },
   heroTextContainer: {
     flex: 1,
-    paddingBottom: 10,
+    paddingBottom: 4,
   },
-  title: {
-    fontSize: 28,
-    fontFamily: Fonts.GeistMono.Bold,
-    color: '#fff',
-    marginBottom: 12,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  heroMeta: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  metaChip: {
+  heroMetaLine: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    gap: 5,
-  },
-  movieChip: {
-    backgroundColor: 'rgba(220, 38, 38, 0.8)',
-  },
-  tvChip: {
-    backgroundColor: 'rgba(37, 99, 235, 0.8)',
-  },
-  metaChipText: {
-    color: '#fff',
-    fontSize: 12,
-    fontFamily: Fonts.GeistMono.SemiBold,
-  },
-  genresContainer: {
-    flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 10,
+    gap: 6,
+    marginBottom: 8,
   },
-  genreChip: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+  heroMetaText: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 11,
+    fontFamily: Fonts.GeistMono.Medium,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
-  genreText: {
-    color: '#fff',
-    fontSize: 12,
+  heroMetaDot: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 11,
     fontFamily: Fonts.GeistMono.Medium,
   },
-  content: {
-    padding: 20,
-  },
-  infoCard: {
+  heroRating: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 20,
-    gap: 12,
+    gap: 4,
   },
-  infoCardText: {
-    color: Colors.text,
-    fontSize: 16,
-    fontFamily: Fonts.GeistMono.SemiBold,
+  title: {
+    fontSize: 26,
+    fontFamily: Fonts.GeistMono.Bold,
+    color: '#fff',
+    lineHeight: 32,
+    letterSpacing: -0.4,
+    marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.65)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
+  },
+  genreLine: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 12,
+    fontFamily: Fonts.GeistMono.Regular,
+    letterSpacing: 0.2,
+  },
+  content: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  seasonsHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 14,
+  },
+  seasonsHintText: {
+    color: Colors.textSecondary,
+    fontSize: 13,
+    fontFamily: Fonts.GeistMono.Medium,
   },
   watchButton: {
-    marginBottom: 25,
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  watchButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 18,
-    gap: 12,
+    backgroundColor: '#fff',
+    paddingVertical: 14,
+    borderRadius: 8,
+    gap: 8,
+    marginBottom: 28,
   },
   watchButtonText: {
-    color: '#fff',
-    fontSize: 20,
+    color: '#000',
+    fontSize: 15,
     fontFamily: Fonts.GeistMono.Bold,
+    letterSpacing: 0.3,
   },
   section: {
-    marginBottom: 30,
+    marginBottom: 32,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 15,
-    gap: 10,
-  },
-  sectionIndicator: {
-    width: 4,
-    height: 24,
-    backgroundColor: Colors.accent,
-    borderRadius: 2,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontFamily: Fonts.GeistMono.Bold,
-    color: Colors.text,
+  sectionLabel: {
+    fontSize: 13,
+    fontFamily: Fonts.GeistMono.SemiBold,
+    color: Colors.textSecondary,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    marginBottom: 12,
   },
   overview: {
     color: Colors.textSecondary,
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: Fonts.GeistMono.Regular,
-    lineHeight: 24,
-  },
-  bottomSpacer: {
-    height: 40,
-  },
-  continueButton: {
-    backgroundColor: Colors.accent,
-    paddingVertical: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 25,
-  },
-  continueButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontFamily: Fonts.GeistMono.Bold,
-  },
-  sectionTitleSimple: {
-    fontSize: 20,
-    fontFamily: Fonts.GeistMono.Bold,
-    color: Colors.text,
-    marginBottom: 15,
+    lineHeight: 22,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 12,
   },
   seeAllText: {
     color: Colors.accent,
-    fontSize: 16,
+    fontSize: 12,
     fontFamily: Fonts.GeistMono.SemiBold,
   },
   castList: {
-    paddingRight: 20,
+    paddingRight: 8,
   },
   castCard: {
-    width: 100,
-    marginRight: 15,
+    width: 88,
+    marginRight: 12,
   },
   castImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 88,
+    height: 88,
+    borderRadius: 8,
     backgroundColor: Colors.surface,
     marginBottom: 8,
   },
@@ -673,24 +624,22 @@ const styles = StyleSheet.create({
   },
   castName: {
     color: Colors.text,
-    fontSize: 14,
+    fontSize: 12,
     fontFamily: Fonts.GeistMono.SemiBold,
-    textAlign: 'center',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   castCharacter: {
     color: Colors.textSecondary,
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: Fonts.GeistMono.Regular,
-    textAlign: 'center',
   },
   recommendationList: {
-    paddingRight: 20,
+    paddingRight: 8,
   },
   recommendationCard: {
-    width: 140,
-    height: 210,
-    marginRight: 12,
+    width: Dimensions.get('window').width * 0.3,
+    height: Dimensions.get('window').width * 0.3 * 1.55,
+    marginRight: 10,
     borderRadius: 8,
     overflow: 'hidden',
     backgroundColor: Colors.surface,
@@ -704,12 +653,18 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 10,
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+    paddingTop: 24,
     justifyContent: 'flex-end',
   },
   recommendationTitle: {
     color: '#fff',
-    fontSize: 13,
-    fontFamily: Fonts.GeistMono.SemiBold,
+    fontSize: 12,
+    fontFamily: Fonts.GeistMono.Medium,
+    lineHeight: 15,
+  },
+  bottomSpacer: {
+    height: 48,
   },
 });

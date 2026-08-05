@@ -2,9 +2,21 @@ import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
 import { useMangaPlus } from '@/hooks/useMangaPlus';
 import { useRouter } from 'expo-router';
-import { BookOpen, Search, TrendingUp } from 'lucide-react-native';
+import { AlertCircle, BookOpen, Search, TrendingUp, X } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+type MangaSource = 'mangadex' | 'anilist' | 'mangaplus';
 
 interface MangaResult {
   id: string;
@@ -13,22 +25,28 @@ interface MangaResult {
   description?: string;
   status?: string;
   chapters?: number;
-  source: 'mangadex' | 'anilist' | 'mangaplus';
+  source: MangaSource;
   author?: string;
   viewCount?: number;
 }
 
+const SOURCES: { id: MangaSource; label: string }[] = [
+  { id: 'mangaplus', label: 'MangaPlus' },
+  { id: 'mangadex', label: 'MangaDex' },
+  { id: 'anilist', label: 'AniList' },
+];
+
 export default function MangaScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const mangaPlus = useMangaPlus();
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<MangaResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedSource, setSelectedSource] = useState<'mangadex' | 'anilist' | 'mangaplus'>('mangaplus');
+  const [selectedSource, setSelectedSource] = useState<MangaSource>('mangaplus');
   const [trendingManga, setTrendingManga] = useState<MangaResult[]>([]);
 
-  // Load trending manga from MangaPlus on mount
   useEffect(() => {
     if (mangaPlus.isInitialized && selectedSource === 'mangaplus') {
       loadMangaPlusTrending();
@@ -38,11 +56,10 @@ export default function MangaScreen() {
   const loadMangaPlusTrending = async () => {
     try {
       const rankings = await mangaPlus.fetchRanking('hottest');
-      // Filter to show only English versions
-      const trending = rankings.slice(0, 20).flatMap(ranking => 
+      const trending = rankings.slice(0, 20).flatMap((ranking) =>
         ranking.titles
-          .filter(title => title.language === 'ENGLISH')
-          .map(title => ({
+          .filter((title) => title.language === 'ENGLISH')
+          .map((title) => ({
             id: title.titleId.toString(),
             title: title.name,
             coverImage: title.portraitImageUrl,
@@ -54,8 +71,8 @@ export default function MangaScreen() {
           }))
       );
       setTrendingManga(trending);
-    } catch (error) {
-      console.error('Error loading MangaPlus trending:', error);
+    } catch (err) {
+      console.error('Error loading MangaPlus trending:', err);
     }
   };
 
@@ -65,33 +82,34 @@ export default function MangaScreen() {
         `https://api.mangadex.org/manga?title=${encodeURIComponent(query)}&limit=20&includes[]=cover_art`
       );
       const data = await response.json();
-      
+
       return data.data.map((manga: any) => {
         const coverArt = manga.relationships.find((rel: any) => rel.type === 'cover_art');
         const coverFileName = coverArt?.attributes?.fileName;
-        const coverImage = coverFileName 
+        const coverImage = coverFileName
           ? `https://uploads.mangadex.org/covers/${manga.id}/${coverFileName}.256.jpg`
           : 'https://via.placeholder.com/256x384?text=No+Cover';
-        
+
         return {
           id: manga.id,
-          title: manga.attributes.title.en || Object.values(manga.attributes.title)[0] || 'Unknown Title',
+          title:
+            manga.attributes.title.en ||
+            Object.values(manga.attributes.title)[0] ||
+            'Unknown Title',
           coverImage,
           description: manga.attributes.description?.en || 'No description available',
           status: manga.attributes.status,
           source: 'mangadex' as const,
         };
       });
-    } catch (error) {
-      console.error('MangaDex search error:', error);
+    } catch (err) {
+      console.error('MangaDex search error:', err);
       return [];
     }
   };
 
   const searchAniList = async (query: string) => {
     try {
-      console.log('Searching AniList for:', query);
-      
       const graphqlQuery = `
         query ($search: String) {
           Page(page: 1, perPage: 20) {
@@ -114,59 +132,59 @@ export default function MangaScreen() {
           }
         }
       `;
-      
+
       const response = await fetch('https://graphql.anilist.co', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
+          Accept: 'application/json',
         },
         body: JSON.stringify({
           query: graphqlQuery,
-          variables: { search: query }
-        })
+          variables: { search: query },
+        }),
       });
-      
-      console.log('AniList response status:', response.status);
-      
+
       if (!response.ok) {
         throw new Error(`AniList API error: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      console.log('AniList response received');
-      
+
       if (!data.data?.Page?.media) {
-        console.error('Unexpected AniList response format:', data);
         return [];
       }
-      
+
       return data.data.Page.media.map((manga: any) => ({
         id: manga.id,
-        title: manga.title?.english || manga.title?.romaji || manga.title?.native || 'Unknown Title',
-        coverImage: manga.coverImage?.large || manga.coverImage?.medium || 'https://via.placeholder.com/256x384?text=No+Cover',
+        title:
+          manga.title?.english ||
+          manga.title?.romaji ||
+          manga.title?.native ||
+          'Unknown Title',
+        coverImage:
+          manga.coverImage?.large ||
+          manga.coverImage?.medium ||
+          'https://via.placeholder.com/256x384?text=No+Cover',
         description: manga.description || 'No description available',
         status: manga.status,
         chapters: manga.chapters,
         source: 'anilist' as const,
       }));
-    } catch (error: any) {
-      console.error('AniList search error:', error);
-      console.error('Error message:', error.message);
+    } catch (err: any) {
+      console.error('AniList search error:', err);
       throw new Error('AniList API is currently unavailable. Try MangaDex instead.');
     }
   };
 
   const searchMangaPlus = async (query: string) => {
     try {
-      console.log('Searching MangaPlus for:', query);
       const titleGroups = await mangaPlus.searchTitles(query);
-      
-      // Filter to show only English versions
-      return titleGroups.flatMap(group => 
+
+      return titleGroups.flatMap((group) =>
         group.titles
-          .filter(title => title.language === 'ENGLISH')
-          .map(title => ({
+          .filter((title) => title.language === 'ENGLISH')
+          .map((title) => ({
             id: title.titleId.toString(),
             title: title.name,
             coverImage: title.portraitImageUrl,
@@ -177,26 +195,25 @@ export default function MangaScreen() {
             source: 'mangaplus' as const,
           }))
       );
-    } catch (error) {
-      console.error('MangaPlus search error:', error);
+    } catch (err) {
+      console.error('MangaPlus search error:', err);
       return [];
     }
   };
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
-      // If no search query, show trending for MangaPlus
       if (selectedSource === 'mangaplus') {
         setResults(trendingManga);
       }
       return;
     }
-    
+
     setLoading(true);
     setError(null);
     try {
       let searchResults: MangaResult[] = [];
-      
+
       if (selectedSource === 'mangadex') {
         searchResults = await searchMangaDex(searchQuery);
       } else if (selectedSource === 'anilist') {
@@ -204,97 +221,132 @@ export default function MangaScreen() {
       } else if (selectedSource === 'mangaplus') {
         searchResults = await searchMangaPlus(searchQuery);
       }
-      
+
       setResults(searchResults);
-      
+
       if (searchResults.length === 0) {
         setError('No results found. Try a different search term.');
       }
-    } catch (error: any) {
-      console.error('Search error:', error);
-      setError(error.message || `Failed to search ${selectedSource}. Please try again.`);
+    } catch (err: any) {
+      console.error('Search error:', err);
+      setError(err.message || `Failed to search ${selectedSource}. Please try again.`);
       setResults([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const stripHtml = (html: string) => {
-    return html.replace(/<[^>]*>/g, '').substring(0, 150) + '...';
+  const clearSearch = () => {
+    setSearchQuery('');
+    setResults([]);
+    setError(null);
   };
+
+  const openManga = (manga: MangaResult) => {
+    router.push({
+      pathname: '/manga-details',
+      params: {
+        id: manga.id,
+        title: manga.title,
+        coverImage: manga.coverImage,
+        description: manga.description || '',
+        status: manga.status || '',
+        chapters: manga.chapters?.toString() || '',
+        source: manga.source,
+        author: manga.author || '',
+        viewCount: manga.viewCount?.toString() || '',
+      },
+    });
+  };
+
+  const stripHtml = (html: string) => {
+    return html.replace(/<[^>]*>/g, '').substring(0, 120) + (html.length > 120 ? '…' : '');
+  };
+
+  const renderMangaRow = (manga: MangaResult) => {
+    const metaParts = [
+      manga.source.toUpperCase(),
+      manga.status?.replace(/_/g, ' '),
+      manga.chapters ? `${manga.chapters} ch` : null,
+      manga.viewCount && manga.viewCount > 0
+        ? `${manga.viewCount.toLocaleString()} views`
+        : null,
+    ].filter(Boolean);
+
+    return (
+      <TouchableOpacity
+        key={`${manga.source}-${manga.id}`}
+        style={styles.mangaRow}
+        onPress={() => openManga(manga)}
+        activeOpacity={0.85}
+      >
+        <Image
+          source={{ uri: manga.coverImage }}
+          style={styles.mangaCover}
+          resizeMode="cover"
+        />
+        <View style={styles.mangaInfo}>
+          <Text style={styles.metaLine} numberOfLines={1}>
+            {metaParts.join('  ·  ')}
+          </Text>
+          <Text style={styles.mangaTitle} numberOfLines={2}>
+            {manga.title}
+          </Text>
+          {manga.author ? (
+            <Text style={styles.mangaAuthor} numberOfLines={1}>
+              {manga.author}
+            </Text>
+          ) : null}
+          {manga.description ? (
+            <Text style={styles.mangaDescription} numberOfLines={2}>
+              {stripHtml(manga.description)}
+            </Text>
+          ) : null}
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const showingResults = results.length > 0;
+  const showingTrending =
+    !showingResults &&
+    !loading &&
+    !error &&
+    selectedSource === 'mangaplus' &&
+    trendingManga.length > 0;
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Manga</Text>
-        <Text style={styles.headerSubtitle}>Discover and read manga</Text>
-      </View>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <Text style={styles.headerLabel}>Manga</Text>
 
-      <View style={styles.searchContainer}>
         <View style={styles.sourceSelector}>
-          <TouchableOpacity
-            style={[
-              styles.sourceButton,
-              selectedSource === 'mangaplus' && styles.sourceButtonActive,
-            ]}
-            onPress={() => {
-              setSelectedSource('mangaplus');
-              setResults([]);
-              setSearchQuery('');
-            }}
-          >
-            <Text
-              style={[
-                styles.sourceButtonText,
-                selectedSource === 'mangaplus' && styles.sourceButtonTextActive,
-              ]}
-            >
-              MangaPlus
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.sourceButton,
-              selectedSource === 'mangadex' && styles.sourceButtonActive,
-            ]}
-            onPress={() => {
-              setSelectedSource('mangadex');
-              setResults([]);
-              setSearchQuery('');
-            }}
-          >
-            <Text
-              style={[
-                styles.sourceButtonText,
-                selectedSource === 'mangadex' && styles.sourceButtonTextActive,
-              ]}
-            >
-              MangaDex
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.sourceButton,
-              selectedSource === 'anilist' && styles.sourceButtonActive,
-            ]}
-            onPress={() => {
-              setSelectedSource('anilist');
-              setResults([]);
-              setSearchQuery('');
-            }}
-          >
-            <Text
-              style={[
-                styles.sourceButtonText,
-                selectedSource === 'anilist' && styles.sourceButtonTextActive,
-              ]}
-            >
-              AniList
-            </Text>
-          </TouchableOpacity>
+          {SOURCES.map((source) => {
+            const active = selectedSource === source.id;
+            return (
+              <TouchableOpacity
+                key={source.id}
+                style={[styles.sourceButton, active && styles.sourceButtonActive]}
+                onPress={() => {
+                  setSelectedSource(source.id);
+                  setResults([]);
+                  setSearchQuery('');
+                  setError(null);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text
+                  style={[styles.sourceButtonText, active && styles.sourceButtonTextActive]}
+                >
+                  {source.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
-        <View style={styles.searchInputContainer}>
+        <View style={styles.searchContainer}>
+          <Search size={18} color={Colors.textSecondary} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search manga..."
@@ -303,146 +355,73 @@ export default function MangaScreen() {
             onChangeText={setSearchQuery}
             onSubmitEditing={handleSearch}
             returnKeyType="search"
+            autoCapitalize="none"
+            autoCorrect={false}
           />
-          <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
-            <Search size={24} color={Colors.text} />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity
+              onPress={clearSearch}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <X size={18} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={styles.searchButton}
+            onPress={handleSearch}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.searchButtonText}>Go</Text>
           </TouchableOpacity>
         </View>
+
+        {showingResults && (
+          <Text style={styles.resultCount}>
+            {results.length} result{results.length === 1 ? '' : 's'}
+          </Text>
+        )}
       </View>
 
-      <ScrollView style={styles.resultsContainer}>
+      <ScrollView
+        style={styles.resultsContainer}
+        contentContainerStyle={styles.resultsContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={Colors.accent} />
             <Text style={styles.loadingText}>Searching {selectedSource}...</Text>
           </View>
         ) : error ? (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorTitle}>⚠️ Error</Text>
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={handleSearch}>
-              <Text style={styles.retryButtonText}>Retry</Text>
+          <View style={styles.emptyContainer}>
+            <AlertCircle size={40} color={Colors.textSecondary} />
+            <Text style={styles.emptyTitle}>Something went wrong</Text>
+            <Text style={styles.emptyText}>{error}</Text>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={handleSearch}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.retryButtonText}>Try Again</Text>
             </TouchableOpacity>
           </View>
-        ) : results.length > 0 ? (
-          <View style={styles.resultsGrid}>
-            {results.map((manga) => (
-              <TouchableOpacity
-                key={manga.id}
-                style={styles.mangaCard}
-                onPress={() => {
-                  console.log('Open manga:', manga.title);
-                  router.push({
-                    pathname: '/manga-details',
-                    params: {
-                      id: manga.id,
-                      title: manga.title,
-                      coverImage: manga.coverImage,
-                      description: manga.description || '',
-                      status: manga.status || '',
-                      chapters: manga.chapters?.toString() || '',
-                      source: manga.source,
-                      author: manga.author || '',
-                      viewCount: manga.viewCount?.toString() || '',
-                    },
-                  });
-                }}
-              >
-                <Image
-                  source={{ uri: manga.coverImage }}
-                  style={styles.mangaCover}
-                  resizeMode="cover"
-                />
-                <View style={styles.mangaInfo}>
-                  <Text style={styles.mangaTitle} numberOfLines={2}>
-                    {manga.title}
-                  </Text>
-                  {manga.author ? (
-                    <Text style={styles.mangaAuthor} numberOfLines={1}>
-                      {manga.author}
-                    </Text>
-                  ) : null}
-                  {manga.status ? (
-                    <Text style={styles.mangaStatus}>{manga.status}</Text>
-                  ) : null}
-                  {manga.chapters ? (
-                    <Text style={styles.mangaChapters}>{manga.chapters} chapters</Text>
-                  ) : null}
-                  {manga.viewCount && manga.viewCount > 0 ? (
-                    <Text style={styles.mangaViews}>
-                      {manga.viewCount.toLocaleString()} views
-                    </Text>
-                  ) : null}
-                  {manga.description ? (
-                    <Text style={styles.mangaDescription} numberOfLines={2}>
-                      {stripHtml(manga.description)}
-                    </Text>
-                  ) : null}
-                  <View style={styles.sourceTag}>
-                    <Text style={styles.sourceTagText}>{manga.source}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        ) : selectedSource === 'mangaplus' && trendingManga.length > 0 ? (
+        ) : showingResults ? (
+          <View style={styles.list}>{results.map(renderMangaRow)}</View>
+        ) : showingTrending ? (
           <View>
-            <Text style={styles.sectionTitle}>
-                <TrendingUp size={16} color="#fff" /> Trending on MangaPlus</Text>
-            <View style={styles.resultsGrid}>
-              {trendingManga.map((manga) => (
-                <TouchableOpacity
-                  key={manga.id}
-                  style={styles.mangaCard}
-                  onPress={() => {
-                    router.push({
-                      pathname: '/manga-details',
-                      params: {
-                        id: manga.id,
-                        title: manga.title,
-                        coverImage: manga.coverImage,
-                        description: manga.description || '',
-                        status: manga.status || '',
-                        source: manga.source,
-                        author: manga.author || '',
-                        viewCount: manga.viewCount?.toString() || '',
-                      },
-                    });
-                  }}
-                >
-                  <Image
-                    source={{ uri: manga.coverImage }}
-                    style={styles.mangaCover}
-                    resizeMode="cover"
-                  />
-                  <View style={styles.mangaInfo}>
-                    <Text style={styles.mangaTitle} numberOfLines={2}>
-                      {manga.title}
-                    </Text>
-                    {manga.author ? (
-                      <Text style={styles.mangaAuthor} numberOfLines={1}>
-                        {manga.author}
-                      </Text>
-                    ) : null}
-                    {manga.viewCount && manga.viewCount > 0 ? (
-                      <Text style={styles.mangaViews}>
-                        {manga.viewCount.toLocaleString()} views
-                      </Text>
-                    ) : null}
-                    <View style={styles.sourceTag}>
-                      <Text style={styles.sourceTagText}>{manga.source}</Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
+            <View style={styles.sectionHeader}>
+              <TrendingUp size={14} color={Colors.accent} />
+              <Text style={styles.sectionLabel}>Trending</Text>
             </View>
+            <View style={styles.list}>{trendingManga.map(renderMangaRow)}</View>
           </View>
         ) : (
-          <View style={styles.emptyState}>
-            <BookOpen size={64} color={Colors.textSecondary} />
-            <Text style={styles.emptyStateTitle}>Search for Manga</Text>
-            <Text style={styles.emptyStateText}>
-              MangaPlus: Official Shueisha manga • MangaDex: High-quality scans • AniList: Comprehensive database
+          <View style={styles.emptyContainer}>
+            <BookOpen size={40} color={Colors.textSecondary} />
+            <Text style={styles.emptyTitle}>Discover manga</Text>
+            <Text style={styles.emptyText}>
+              MangaPlus for official titles, MangaDex for scans, AniList for discovery
             </Text>
           </View>
         )}
@@ -457,215 +436,191 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   header: {
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 15,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
   },
-  headerTitle: {
-    fontSize: 32,
-    fontFamily: Fonts.GeistMono.Bold,
-    color: Colors.text,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    fontFamily: Fonts.GeistMono.Regular,
+  headerLabel: {
+    fontSize: 13,
+    fontFamily: Fonts.GeistMono.SemiBold,
     color: Colors.textSecondary,
-    marginTop: 5,
-  },
-  searchContainer: {
-    paddingHorizontal: 15,
-    marginBottom: 20,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    marginBottom: 12,
   },
   sourceSelector: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 15,
+    gap: 8,
+    marginBottom: 12,
   },
   sourceButton: {
     flex: 1,
     paddingVertical: 10,
-    paddingHorizontal: 15,
     borderRadius: 8,
     backgroundColor: Colors.surface,
     alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: 'transparent',
   },
   sourceButtonActive: {
-    backgroundColor: Colors.accent,
+    borderColor: Colors.accent,
+    backgroundColor: Colors.card,
   },
   sourceButtonText: {
     fontFamily: Fonts.GeistMono.SemiBold,
-    fontSize: 14,
+    fontSize: 12,
     color: Colors.textSecondary,
+    letterSpacing: 0.3,
   },
   sourceButtonTextActive: {
     color: Colors.text,
   },
-  searchInputContainer: {
+  searchContainer: {
     flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 8,
+    paddingLeft: 14,
+    paddingRight: 6,
+    height: 48,
     gap: 10,
   },
   searchInput: {
     flex: 1,
-    backgroundColor: Colors.surface,
     color: Colors.text,
-    padding: 15,
-    borderRadius: 10,
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: Fonts.GeistMono.Regular,
+    paddingVertical: 0,
   },
   searchButton: {
-    backgroundColor: Colors.accent,
-    paddingHorizontal: 15,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  searchButtonText: {
+    color: '#000',
+    fontSize: 13,
+    fontFamily: Fonts.GeistMono.Bold,
+  },
+  resultCount: {
+    marginTop: 12,
+    fontSize: 11,
+    fontFamily: Fonts.GeistMono.Medium,
+    color: Colors.textSecondary,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   resultsContainer: {
     flex: 1,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 50,
+  resultsContent: {
+    paddingBottom: 48,
+    flexGrow: 1,
   },
-  loadingText: {
-    marginTop: 15,
-    fontSize: 16,
-    fontFamily: Fonts.GeistMono.Regular,
-    color: Colors.textSecondary,
-  },
-  resultsGrid: {
-    paddingHorizontal: 15,
-    paddingBottom: 20,
-  },
-  mangaCard: {
+  sectionHeader: {
     flexDirection: 'row',
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    marginBottom: 15,
-    overflow: 'hidden',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  sectionLabel: {
+    fontSize: 13,
+    fontFamily: Fonts.GeistMono.SemiBold,
+    color: Colors.textSecondary,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  list: {
+    paddingHorizontal: 16,
+  },
+  mangaRow: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    gap: 12,
   },
   mangaCover: {
-    width: 100,
-    height: 150,
+    width: 72,
+    height: 108,
+    borderRadius: 8,
+    backgroundColor: Colors.surface,
   },
   mangaInfo: {
     flex: 1,
-    padding: 12,
+    justifyContent: 'center',
+    paddingVertical: 2,
+  },
+  metaLine: {
+    color: Colors.textSecondary,
+    fontSize: 11,
+    fontFamily: Fonts.GeistMono.Medium,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 6,
   },
   mangaTitle: {
-    fontSize: 16,
-    fontFamily: Fonts.GeistMono.Bold,
+    fontSize: 15,
+    fontFamily: Fonts.GeistMono.SemiBold,
     color: Colors.text,
-    marginBottom: 5,
+    marginBottom: 4,
+    lineHeight: 20,
   },
   mangaAuthor: {
-    fontSize: 11,
-    fontFamily: Fonts.GeistMono.Regular,
-    color: Colors.textSecondary,
-    marginBottom: 3,
-    fontStyle: 'italic',
-  },
-  mangaStatus: {
-    fontSize: 12,
-    fontFamily: Fonts.GeistMono.Regular,
-    color: Colors.accent,
-    marginBottom: 3,
-    textTransform: 'capitalize',
-  },
-  mangaChapters: {
     fontSize: 12,
     fontFamily: Fonts.GeistMono.Regular,
     color: Colors.textSecondary,
-    marginBottom: 5,
-  },
-  mangaViews: {
-    fontSize: 11,
-    fontFamily: Fonts.GeistMono.Regular,
-    color: Colors.textSecondary,
-    marginBottom: 5,
+    marginBottom: 4,
   },
   mangaDescription: {
     fontSize: 12,
     fontFamily: Fonts.GeistMono.Regular,
     color: Colors.textSecondary,
-    lineHeight: 16,
+    lineHeight: 18,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontFamily: Fonts.GeistMono.Bold,
-    color: Colors.text,
-    paddingHorizontal: 15,
-    marginBottom: 15,
-    marginTop: 10,
-  },
-  sourceTag: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: Colors.card,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  sourceTagText: {
-    fontSize: 10,
-    fontFamily: Fonts.GeistMono.SemiBold,
-    color: Colors.accent,
-    textTransform: 'uppercase',
-  },
-  emptyState: {
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 100,
+    paddingVertical: 80,
+    gap: 14,
+  },
+  loadingText: {
+    fontSize: 13,
+    fontFamily: Fonts.GeistMono.Regular,
+    color: Colors.textSecondary,
+    letterSpacing: 0.5,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 80,
     paddingHorizontal: 40,
   },
-  emptyStateTitle: {
-    fontSize: 20,
+  emptyTitle: {
+    fontSize: 16,
     fontFamily: Fonts.GeistMono.Bold,
     color: Colors.text,
-    marginTop: 20,
-    marginBottom: 10,
+    marginTop: 16,
+    marginBottom: 8,
   },
-  emptyStateText: {
-    fontSize: 14,
+  emptyText: {
+    fontSize: 13,
     fontFamily: Fonts.GeistMono.Regular,
     color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 100,
-    paddingHorizontal: 40,
-  },
-  errorTitle: {
-    fontSize: 20,
-    fontFamily: Fonts.GeistMono.Bold,
-    color: Colors.text,
-    marginBottom: 10,
-  },
-  errorText: {
-    fontSize: 14,
-    fontFamily: Fonts.GeistMono.Regular,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 20,
   },
   retryButton: {
-    backgroundColor: Colors.accent,
-    paddingHorizontal: 30,
+    backgroundColor: '#fff',
+    paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
+    marginTop: 16,
   },
   retryButtonText: {
-    color: Colors.text,
-    fontSize: 16,
+    color: '#000',
+    fontSize: 14,
     fontFamily: Fonts.GeistMono.Bold,
   },
 });

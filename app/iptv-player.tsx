@@ -4,7 +4,15 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { AlertCircle, X } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View, TouchableWithoutFeedback } from 'react-native';
+import {
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
 const PLYR_VERSION = '3.8.4';
@@ -17,7 +25,11 @@ type PlayerMessage = {
 const isPlayableUrl = (value: string) => {
   try {
     const parsed = new URL(value);
-    return (parsed.protocol === 'https:' || parsed.protocol === 'http:') && !parsed.username && !parsed.password;
+    return (
+      (parsed.protocol === 'https:' || parsed.protocol === 'http:') &&
+      !parsed.username &&
+      !parsed.password
+    );
   } catch {
     return false;
   }
@@ -35,14 +47,14 @@ const buildIptvPlayerHtml = (streamUrl: string, channelName: string) => {
     <style>
       :root {
         --plyr-color-main: ${Colors.accent};
-        --plyr-video-background: ${Colors.background};
+        --plyr-video-background: #000;
         --plyr-video-control-color: ${Colors.text};
         --plyr-video-control-color-hover: ${Colors.text};
         --plyr-menu-background: ${Colors.surface};
         --plyr-menu-color: ${Colors.text};
         --plyr-font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
       }
-      html, body, #app, .plyr { width: 100%; height: 100%; margin: 0; background: ${Colors.background}; }
+      html, body, #app, .plyr { width: 100%; height: 100%; margin: 0; background: #000; }
       video { width: 100%; height: 100%; }
     </style>
   </head>
@@ -54,8 +66,8 @@ const buildIptvPlayerHtml = (streamUrl: string, channelName: string) => {
       (function () {
         const source = ${serializedSource};
         const video = document.getElementById('player');
-        const isDash = /\.mpd(?:[?#]|$)/i.test(source.streamUrl);
-        const isDirectFile = /\.(mp4|m4v|webm)(?:[?#]|$)/i.test(source.streamUrl);
+        const isDash = /\\.mpd(?:[?#]|$)/i.test(source.streamUrl);
+        const isDirectFile = /\\.(mp4|m4v|webm)(?:[?#]|$)/i.test(source.streamUrl);
         const shouldTryHls = !isDash && !isDirectFile;
 
         const post = (type) => {
@@ -117,6 +129,7 @@ export default function IptvPlayerScreen() {
     streamUrl?: string;
   }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [hasLoaded, setHasLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -128,7 +141,10 @@ export default function IptvPlayerScreen() {
     hideTimer.current = setTimeout(() => setControlsVisible(false), 3000);
   };
 
-  const playableStreamUrl = useMemo(() => (isPlayableUrl(streamUrl) ? streamUrl : ''), [streamUrl]);
+  const playableStreamUrl = useMemo(
+    () => (isPlayableUrl(streamUrl) ? streamUrl : ''),
+    [streamUrl]
+  );
   const streamOrigin = useMemo(() => {
     try {
       return new URL(playableStreamUrl).origin;
@@ -172,18 +188,39 @@ export default function IptvPlayerScreen() {
     }
   }, []);
 
+  const headerPadding = {
+    paddingTop: Math.max(insets.top, 10),
+    paddingLeft: Math.max(insets.left, 12),
+    paddingRight: Math.max(insets.right, 12),
+  };
+
   if (!playableStreamUrl || hasError) {
     return (
       <View style={styles.container}>
-        <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
-          <X size={24} color={Colors.text} />
-        </TouchableOpacity>
+        <View style={[styles.header, headerPadding]}>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => router.back()}
+            activeOpacity={0.85}
+            accessibilityLabel="Close player"
+          >
+            <X size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
         <View style={styles.stateContainer}>
-          <AlertCircle size={48} color={Colors.accent} />
+          <AlertCircle size={40} color={Colors.textSecondary} />
           <Text style={styles.stateTitle}>Channel unavailable</Text>
           <Text style={styles.stateText}>
-            This channel could not be played in Plyr. It may be offline, protected, or unsupported by the device.
+            This channel could not be played. It may be offline, protected, or unsupported on
+            this device.
           </Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => router.back()}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.retryButtonText}>Go Back</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -204,11 +241,21 @@ export default function IptvPlayerScreen() {
           onMessage={handleMessage}
         />
         {controlsVisible && (
-          <View style={styles.header} pointerEvents="box-none">
-            <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
-              <X size={24} color={Colors.text} />
+          <View style={[styles.header, headerPadding]} pointerEvents="box-none">
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => router.back()}
+              activeOpacity={0.85}
+              accessibilityLabel="Close player"
+            >
+              <X size={20} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.channelName} numberOfLines={1}>{channelName}</Text>
+            <View style={styles.headerInfo}>
+              <Text style={styles.channelName} numberOfLines={1}>
+                {channelName}
+              </Text>
+              <Text style={styles.liveLabel}>Live</Text>
+            </View>
           </View>
         )}
         {!hasLoaded && (
@@ -225,10 +272,11 @@ export default function IptvPlayerScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#000',
   },
   webview: {
     flex: 1,
+    backgroundColor: '#000',
   },
   header: {
     position: 'absolute',
@@ -238,30 +286,47 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.72)',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingBottom: 12,
+    gap: 10,
+    zIndex: 10,
   },
   closeButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerInfo: {
+    flex: 1,
+    minWidth: 0,
   },
   channelName: {
-    flex: 1,
     color: Colors.text,
     fontFamily: Fonts.GeistMono.SemiBold,
     fontSize: 15,
-    marginLeft: 8,
+  },
+  liveLabel: {
+    color: Colors.accent,
+    fontFamily: Fonts.GeistMono.Medium,
+    fontSize: 11,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginTop: 2,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-    backgroundColor: Colors.background,
+    backgroundColor: 'rgba(0,0,0,0.85)',
   },
   loadingText: {
     color: Colors.textSecondary,
     fontFamily: Fonts.GeistMono.Regular,
-    fontSize: 14,
+    fontSize: 13,
+    letterSpacing: 0.5,
   },
   stateContainer: {
     flex: 1,
@@ -273,13 +338,25 @@ const styles = StyleSheet.create({
   stateTitle: {
     color: Colors.text,
     fontFamily: Fonts.GeistMono.Bold,
-    fontSize: 22,
+    fontSize: 16,
   },
   stateText: {
     color: Colors.textSecondary,
     fontFamily: Fonts.GeistMono.Regular,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 13,
+    lineHeight: 20,
     textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  retryButtonText: {
+    color: '#000',
+    fontFamily: Fonts.GeistMono.Bold,
+    fontSize: 14,
   },
 });

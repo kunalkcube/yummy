@@ -17,7 +17,6 @@ export const MovieRow = ({ title, movies, icon: Icon, mediaType }: MovieRowProps
   const router = useRouter();
 
   const handlePress = (movie: Movie) => {
-    // Use provided mediaType first, then media_type from movie, then fallback to title detection
     const type = mediaType || movie.media_type || (movie.title ? 'movie' : 'tv');
     router.push({
       pathname: '/details',
@@ -28,7 +27,7 @@ export const MovieRow = ({ title, movies, icon: Icon, mediaType }: MovieRowProps
   return (
     <View style={styles.container}>
       <View style={styles.titleContainer}>
-        {Icon && <Icon size={22} color={Colors.accent} />}
+        {Icon && <Icon size={16} color={Colors.accent} strokeWidth={2} />}
         <Text style={styles.title}>{title}</Text>
       </View>
       <FlatList
@@ -47,23 +46,23 @@ export const MovieRow = ({ title, movies, icon: Icon, mediaType }: MovieRowProps
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 25,
+    marginBottom: 32,
   },
   titleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-    marginLeft: 15,
-    gap: 10,
+    marginBottom: 14,
+    marginLeft: 16,
+    gap: 8,
   },
   title: {
-    fontSize: 20,
-    fontFamily: Fonts.GeistMono.Bold,
+    fontSize: 15,
+    fontFamily: Fonts.GeistMono.SemiBold,
     color: Colors.text,
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
   },
   list: {
-    paddingLeft: 15,
-    paddingRight: 5,
+    paddingLeft: 16,
+    paddingRight: 8,
   },
 });

@@ -60,8 +60,11 @@ export const SeasonsList = ({ seasons, tvId, tvTitle, onEpisodePress }: SeasonsL
         key={episode.id}
         style={styles.episodeItem}
         onPress={() => onEpisodePress(seasonNumber, episode.episode_number)}
+        activeOpacity={0.85}
       >
-        <Image source={{ uri: imageUrl }} style={styles.episodeImage} />
+        <View style={styles.episodeThumb}>
+          <Image source={{ uri: imageUrl }} style={styles.episodeImage} resizeMode="cover" />
+        </View>
         <View style={styles.episodeInfo}>
           <View style={styles.episodeHeader}>
             <Text style={styles.episodeNumber}>{episode.episode_number}</Text>
@@ -76,7 +79,9 @@ export const SeasonsList = ({ seasons, tvId, tvTitle, onEpisodePress }: SeasonsL
             <Text style={styles.episodeRuntime}>{episode.runtime} min</Text>
           )}
         </View>
-        <PlayCircle size={32} color={Colors.accent} />
+        <View style={styles.playWrap}>
+          <PlayCircle size={28} color={Colors.accent} />
+        </View>
       </TouchableOpacity>
     );
   };
@@ -144,7 +149,6 @@ export const SeasonsList = ({ seasons, tvId, tvTitle, onEpisodePress }: SeasonsL
 
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionTitle}>Seasons & Episodes</Text>
       <FlatList
         data={seasons}
         keyExtractor={(item) => item.id.toString()}
@@ -157,42 +161,37 @@ export const SeasonsList = ({ seasons, tvId, tvTitle, onEpisodePress }: SeasonsL
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontFamily: Fonts.GeistMono.Bold,
-    color: Colors.text,
-    marginBottom: 15,
+    marginBottom: 4,
   },
   seasonContainer: {
-    marginBottom: 10,
+    marginBottom: 8,
     backgroundColor: Colors.surface,
-    borderRadius: 10,
+    borderRadius: 8,
     overflow: 'hidden',
   },
   seasonHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 15,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
   },
   seasonInfo: {
     flex: 1,
   },
   seasonTitle: {
-    fontSize: 16,
-    fontFamily: Fonts.GeistMono.Bold,
+    fontSize: 14,
+    fontFamily: Fonts.GeistMono.SemiBold,
     color: Colors.text,
     marginBottom: 4,
   },
   seasonMeta: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: Fonts.GeistMono.Regular,
     color: Colors.textSecondary,
   },
   episodesContainer: {
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Colors.border,
   },
   loadingContainer: {
@@ -204,25 +203,35 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     color: Colors.textSecondary,
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: Fonts.GeistMono.Regular,
   },
   episodeItem: {
     flexDirection: 'row',
-    padding: 12,
-    borderBottomWidth: 1,
+    alignItems: 'stretch',
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
+    minHeight: 88,
+    padding: 12,
     gap: 12,
   },
-  episodeImage: {
-    width: 120,
-    height: 68,
-    borderRadius: 6,
+  episodeThumb: {
+    width: 128,
+    alignSelf: 'stretch',
     backgroundColor: Colors.card,
+    overflow: 'hidden',
+    borderRadius: 6,
+  },
+  episodeImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
   },
   episodeInfo: {
     flex: 1,
     justifyContent: 'center',
+    paddingVertical: 0,
+    paddingHorizontal: 0,
   },
   episodeHeader: {
     flexDirection: 'row',
@@ -231,40 +240,42 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   episodeNumber: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: Fonts.GeistMono.Bold,
     color: Colors.accent,
   },
   episodeTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: Fonts.GeistMono.SemiBold,
     color: Colors.text,
     flex: 1,
   },
   episodeOverview: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: Fonts.GeistMono.Regular,
     color: Colors.textSecondary,
     lineHeight: 16,
     marginBottom: 4,
   },
   episodeRuntime: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: Fonts.GeistMono.Regular,
     color: Colors.textSecondary,
+  },
+  playWrap: {
+    justifyContent: 'center',
+    paddingRight: 0,
   },
   loadMoreButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    padding: 14,
     gap: 8,
     backgroundColor: Colors.card,
-    borderBottomLeftRadius: 10,
-    borderBottomRightRadius: 10,
   },
   loadMoreText: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: Fonts.GeistMono.SemiBold,
     color: Colors.accent,
   },

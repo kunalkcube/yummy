@@ -2,25 +2,34 @@ import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
 import { useMangaPlus } from '@/hooks/useMangaPlus';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2, RotateCcw } from 'lucide-react-native';
+import {
+  AlertCircle,
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  Maximize2,
+  Minimize2,
+  RotateCcw,
+} from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Dimensions,
-    Image,
-    Pressable,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  Image,
+  Pressable,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Page {
   url: string;
@@ -39,6 +48,7 @@ export default function MangaReaderScreen() {
   }>();
 
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const mangaPlus = useMangaPlus();
   const [pages, setPages] = useState<Page[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
@@ -48,7 +58,6 @@ export default function MangaReaderScreen() {
   const [imageLoading, setImageLoading] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
 
-  // Zoom animation values
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -80,62 +89,55 @@ export default function MangaReaderScreen() {
 
   const loadMangaPlusPages = async () => {
     try {
-      console.log('📖 Loading MangaPlus chapter:', params.chapterId);
-      
       const chapterId = parseInt(params.chapterId);
       if (isNaN(chapterId)) {
         throw new Error('Invalid chapter ID');
       }
 
-      // Simply fetch - the hook will handle initialization
-      console.log('🚀 Fetching chapter pages for:', chapterId);
       const pageUrls = await mangaPlus.fetchChapterPages(chapterId);
-      
+
       if (!pageUrls || pageUrls.length === 0) {
         throw new Error('No pages found for this chapter. It may not be available yet.');
       }
 
-      console.log(`✅ Loaded ${pageUrls.length} pages from MangaPlus`);
-
-      const pages = pageUrls.map((url, index) => ({
-        url,
-        index,
-      }));
-
-      setPages(pages);
+      setPages(
+        pageUrls.map((url, index) => ({
+          url,
+          index,
+        }))
+      );
     } catch (err: any) {
-      console.error('❌ MangaPlus pages error:', err);
+      console.error('MangaPlus pages error:', err);
       throw new Error(err.message || 'Failed to load MangaPlus pages');
     }
   };
 
   const loadMangaDexPages = async () => {
     try {
-      // Get chapter pages from MangaDex At-Home server
       const response = await fetch(
         `https://api.mangadex.org/at-home/server/${params.chapterId}`
       );
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch chapter pages');
       }
 
       const data = await response.json();
-      
+
       if (!data.chapter || !data.chapter.data) {
         throw new Error('No pages found for this chapter');
       }
 
       const baseUrl = data.baseUrl;
       const chapterHash = data.chapter.hash;
-      const pageFiles = data.chapter.data; // High quality pages
+      const pageFiles = data.chapter.data;
 
-      const pageUrls = pageFiles.map((filename: string, index: number) => ({
-        url: `${baseUrl}/data/${chapterHash}/${filename}`,
-        index,
-      }));
-
-      setPages(pageUrls);
+      setPages(
+        pageFiles.map((filename: string, index: number) => ({
+          url: `${baseUrl}/data/${chapterHash}/${filename}`,
+          index,
+        }))
+      );
     } catch (err) {
       throw new Error('Failed to load MangaDex pages');
     }
@@ -143,76 +145,41 @@ export default function MangaReaderScreen() {
 
   const loadAniListPages = async () => {
     try {
-      console.log('Loading AniList chapter:', params.chapterId);
-      
-      // Use Consumet API to get chapter pages
       const response = await fetch(
         `https://api.consumet.org/meta/anilist-manga/read?chapterId=${encodeURIComponent(params.chapterId)}`
       );
-      
-      console.log('Consumet response status:', response.status);
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch chapter from Consumet API');
       }
 
       const text = await response.text();
-      
-      // Check if response is HTML (error page)
+
       if (text.trim().startsWith('<')) {
-        console.error('Consumet returned HTML instead of JSON');
-        throw new Error('Consumet API is currently unavailable. This manga may not be available for reading.');
+        throw new Error(
+          'Consumet API is currently unavailable. This manga may not be available for reading.'
+        );
       }
-      
+
       const data = JSON.parse(text);
-      console.log('Consumet data received, pages:', data.length);
-      
+
       if (!Array.isArray(data) || data.length === 0) {
         throw new Error('No pages found for this chapter');
       }
 
-      // Consumet returns array of page objects with 'img' or 'page' property
-      const pageUrls = data.map((page: any, index: number) => ({
-        url: page.img || page.page || page.url || page,
-        index,
-      }));
-
-      setPages(pageUrls);
+      setPages(
+        data.map((page: any, index: number) => ({
+          url: page.img || page.page || page.url || page,
+          index,
+        }))
+      );
     } catch (err: any) {
       console.error('AniList pages error:', err);
-      throw new Error(err.message || 'Failed to load AniList pages. This manga may not be available for reading.');
+      throw new Error(
+        err.message ||
+          'Failed to load AniList pages. This manga may not be available for reading.'
+      );
     }
-  };
-
-  const goToNextPage = () => {
-    if (currentPage < pages.length - 1) {
-      setCurrentPage(currentPage + 1);
-      setImageLoading(true);
-      scale.value = withSpring(1);
-      savedScale.value = 1;
-      translateX.value = withSpring(0);
-      translateY.value = withSpring(0);
-    }
-  };
-
-  const goToPreviousPage = () => {
-    if (currentPage > 0) {
-      setCurrentPage(currentPage - 1);
-      setImageLoading(true);
-      scale.value = withSpring(1);
-      savedScale.value = 1;
-      translateX.value = withSpring(0);
-      translateY.value = withSpring(0);
-    }
-  };
-
-  const toggleControls = () => {
-    setShowControls(!showControls);
-  };
-
-  const toggleFullscreen = () => {
-    setFullscreen(!fullscreen);
-    setShowControls(!fullscreen); // Show controls when exiting fullscreen
   };
 
   const resetZoom = () => {
@@ -222,7 +189,31 @@ export default function MangaReaderScreen() {
     translateY.value = withSpring(0);
   };
 
-  // Pinch gesture for zoom
+  const goToNextPage = () => {
+    if (currentPage < pages.length - 1) {
+      setCurrentPage(currentPage + 1);
+      setImageLoading(true);
+      resetZoom();
+    }
+  };
+
+  const goToPreviousPage = () => {
+    if (currentPage > 0) {
+      setCurrentPage(currentPage - 1);
+      setImageLoading(true);
+      resetZoom();
+    }
+  };
+
+  const toggleControls = () => {
+    setShowControls(!showControls);
+  };
+
+  const toggleFullscreen = () => {
+    setFullscreen(!fullscreen);
+    setShowControls(!fullscreen);
+  };
+
   const pinchGesture = Gesture.Pinch()
     .onUpdate((e) => {
       scale.value = savedScale.value * e.scale;
@@ -238,7 +229,6 @@ export default function MangaReaderScreen() {
       }
     });
 
-  // Pan gesture for moving zoomed image
   const panGesture = Gesture.Pan()
     .onUpdate((e) => {
       if (scale.value > 1) {
@@ -247,7 +237,6 @@ export default function MangaReaderScreen() {
       }
     })
     .onEnd(() => {
-      // Reset if panned too far
       if (Math.abs(translateX.value) > SCREEN_WIDTH / 2) {
         translateX.value = withSpring(0);
       }
@@ -258,30 +247,49 @@ export default function MangaReaderScreen() {
 
   const composed = Gesture.Simultaneous(pinchGesture, panGesture);
 
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        { translateX: translateX.value },
-        { translateY: translateY.value },
-        { scale: scale.value },
-      ],
-    };
-  });
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+  }));
+
+  const renderChromeHeader = (opts?: { title?: string; subtitle?: string }) => (
+    <View style={[styles.chromeHeader, { paddingTop: insets.top + 8 }]}>
+      <TouchableOpacity
+        style={styles.iconBtn}
+        onPress={() => router.back()}
+        activeOpacity={0.85}
+        accessibilityLabel="Go back"
+      >
+        <ArrowLeft size={20} color="#fff" />
+      </TouchableOpacity>
+      {(opts?.title || opts?.subtitle) && (
+        <View style={styles.headerInfo}>
+          {opts.title ? (
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {opts.title}
+            </Text>
+          ) : null}
+          {opts.subtitle ? (
+            <Text style={styles.headerSubtitle} numberOfLines={1}>
+              {opts.subtitle}
+            </Text>
+          ) : null}
+        </View>
+      )}
+    </View>
+  );
 
   if (loading) {
     return (
       <View style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
-        <View style={styles.loadingHeader}>
-          <TouchableOpacity 
-            style={styles.backButtonLoading} 
-            onPress={() => router.back()}
-            activeOpacity={0.7}
-          >
-            <ArrowLeft size={24} color={Colors.text} />
-            <Text style={styles.backButtonText}>Back</Text>
-          </TouchableOpacity>
-        </View>
+        <StatusBar barStyle="light-content" backgroundColor="#000" />
+        {renderChromeHeader({
+          title: 'Loading…',
+          subtitle: params.chapterTitle,
+        })}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.accent} />
           <Text style={styles.loadingText}>Loading chapter...</Text>
@@ -294,43 +302,39 @@ export default function MangaReaderScreen() {
   if (error || pages.length === 0) {
     return (
       <View style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
-        <View style={styles.loadingHeader}>
-          <TouchableOpacity 
-            style={styles.backButtonLoading} 
-            onPress={() => router.back()}
-            activeOpacity={0.7}
-          >
-            <ArrowLeft size={24} color={Colors.text} />
-            <Text style={styles.backButtonText}>Back</Text>
-          </TouchableOpacity>
-        </View>
+        <StatusBar barStyle="light-content" backgroundColor="#000" />
+        {renderChromeHeader()}
         <View style={styles.errorContainer}>
-          <Text style={styles.errorTitle}>⚠️ Error</Text>
+          <AlertCircle size={48} color={Colors.textSecondary} />
+          <Text style={styles.errorTitle}>Failed to load</Text>
           <Text style={styles.errorText}>{error || 'No pages found'}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={loadChapterPages}>
-            <RotateCcw size={20} color={Colors.text} />
-            <Text style={styles.retryButtonText}>Retry</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={loadChapterPages}
+            activeOpacity={0.85}
+          >
+            <RotateCcw size={16} color="#000" />
+            <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   }
 
+  const atStart = currentPage === 0;
+  const atEnd = currentPage === pages.length - 1;
+
   return (
     <GestureHandlerRootView style={styles.container}>
-      <StatusBar 
-        barStyle="light-content" 
-        backgroundColor={showControls && !fullscreen ? Colors.surface : '#000'} 
-        hidden={fullscreen}
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="#000"
+        hidden={fullscreen && !showControls}
       />
       <View style={styles.container}>
         <View style={styles.readerContainer}>
           <GestureDetector gesture={composed}>
-            <Pressable 
-              style={styles.imageContainer}
-              onPress={toggleControls}
-            >
+            <Pressable style={styles.imageContainer} onPress={toggleControls}>
               <Animated.View style={animatedStyle}>
                 <Image
                   source={{ uri: pages[currentPage].url }}
@@ -350,60 +354,61 @@ export default function MangaReaderScreen() {
         </View>
 
         {showControls && !fullscreen && (
-          <View style={styles.header} pointerEvents="box-none">
-            <TouchableOpacity 
-              style={styles.backButton} 
-              onPress={() => {
-                console.log('Back button pressed');
-                router.back();
-              }}
-              activeOpacity={0.7}
+          <View
+            style={[styles.header, { paddingTop: insets.top + 8 }]}
+            pointerEvents="box-none"
+          >
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={() => router.back()}
+              activeOpacity={0.85}
+              accessibilityLabel="Go back"
             >
-              <ArrowLeft size={24} color={Colors.text} />
-              <Text style={styles.backButtonText}>Back</Text>
+              <ArrowLeft size={20} color="#fff" />
             </TouchableOpacity>
+
             <View style={styles.headerInfo}>
               <Text style={styles.headerTitle} numberOfLines={1}>
                 {params.chapterTitle}
               </Text>
-              <Text style={styles.headerSubtitle}>
+              <Text style={styles.headerSubtitle} numberOfLines={1}>
                 {params.mangaTitle}
               </Text>
             </View>
-            <TouchableOpacity 
-              style={styles.iconButton} 
-              onPress={() => {
-                console.log('Reset zoom pressed');
-                resetZoom();
-              }}
-              activeOpacity={0.7}
+
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={resetZoom}
+              activeOpacity={0.85}
+              accessibilityLabel="Reset zoom"
             >
-              <RotateCcw size={20} color={Colors.textSecondary} />
+              <RotateCcw size={18} color="#fff" />
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.iconButton} 
-              onPress={() => {
-                console.log('Fullscreen pressed');
-                toggleFullscreen();
-              }}
-              activeOpacity={0.7}
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={toggleFullscreen}
+              activeOpacity={0.85}
+              accessibilityLabel="Enter fullscreen"
             >
-              <Maximize2 size={20} color={Colors.textSecondary} />
+              <Maximize2 size={18} color="#fff" />
             </TouchableOpacity>
           </View>
         )}
 
         {showControls && !fullscreen && (
-          <View style={styles.controls} pointerEvents="box-none">
+          <View
+            style={[styles.controls, { paddingBottom: Math.max(insets.bottom, 12) }]}
+            pointerEvents="box-none"
+          >
             <TouchableOpacity
-              style={[styles.navButton, currentPage === 0 && styles.navButtonDisabled]}
+              style={[styles.navButton, atStart && styles.navButtonDisabled]}
               onPress={goToPreviousPage}
-              disabled={currentPage === 0}
-              activeOpacity={0.7}
+              disabled={atStart}
+              activeOpacity={0.85}
             >
-              <ChevronLeft size={24} color={currentPage === 0 ? Colors.textSecondary : Colors.text} />
-              <Text style={[styles.navButtonText, currentPage === 0 && styles.navButtonTextDisabled]}>
-                Previous
+              <ChevronLeft size={20} color={atStart ? Colors.textSecondary : '#fff'} />
+              <Text style={[styles.navButtonText, atStart && styles.navButtonTextDisabled]}>
+                Prev
               </Text>
             </TouchableOpacity>
 
@@ -414,37 +419,27 @@ export default function MangaReaderScreen() {
             </View>
 
             <TouchableOpacity
-              style={[
-                styles.navButton,
-                currentPage === pages.length - 1 && styles.navButtonDisabled,
-              ]}
+              style={[styles.navButton, atEnd && styles.navButtonDisabled]}
               onPress={goToNextPage}
-              disabled={currentPage === pages.length - 1}
-              activeOpacity={0.7}
+              disabled={atEnd}
+              activeOpacity={0.85}
             >
-              <Text
-                style={[
-                  styles.navButtonText,
-                  currentPage === pages.length - 1 && styles.navButtonTextDisabled,
-                ]}
-              >
+              <Text style={[styles.navButtonText, atEnd && styles.navButtonTextDisabled]}>
                 Next
               </Text>
-              <ChevronRight
-                size={24}
-                color={currentPage === pages.length - 1 ? Colors.textSecondary : Colors.text}
-              />
+              <ChevronRight size={20} color={atEnd ? Colors.textSecondary : '#fff'} />
             </TouchableOpacity>
           </View>
         )}
 
         {fullscreen && showControls && (
-          <TouchableOpacity 
-            style={styles.fullscreenExit} 
+          <TouchableOpacity
+            style={[styles.fullscreenExit, { top: insets.top + 8 }]}
             onPress={toggleFullscreen}
-            activeOpacity={0.7}
+            activeOpacity={0.85}
+            accessibilityLabel="Exit fullscreen"
           >
-            <Minimize2 size={24} color={Colors.text} />
+            <Minimize2 size={20} color="#fff" />
           </TouchableOpacity>
         )}
       </View>
@@ -455,25 +450,22 @@ export default function MangaReaderScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#000',
   },
-  loadingHeader: {
-    paddingTop: 50,
-    paddingBottom: 15,
-    paddingHorizontal: 15,
-    backgroundColor: Colors.surface,
-  },
-  backButtonLoading: {
+  chromeHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    padding: 8,
-    alignSelf: 'flex-start',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 10,
   },
-  backButtonText: {
-    fontSize: 16,
-    fontFamily: Fonts.GeistMono.SemiBold,
-    color: Colors.text,
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     position: 'absolute',
@@ -482,104 +474,95 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 50,
-    paddingBottom: 15,
-    paddingHorizontal: 15,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    zIndex: 100,
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    backgroundColor: 'rgba(0,0,0,0.72)',
     gap: 8,
-    padding: 8,
-    marginRight: 10,
-  },
-  iconButton: {
-    padding: 8,
-    marginLeft: 8,
+    zIndex: 100,
   },
   headerInfo: {
     flex: 1,
+    minWidth: 0,
   },
   headerTitle: {
-    fontSize: 16,
-    fontFamily: Fonts.GeistMono.Bold,
+    fontSize: 14,
+    fontFamily: Fonts.GeistMono.SemiBold,
     color: Colors.text,
   },
   headerSubtitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: Fonts.GeistMono.Regular,
     color: Colors.textSecondary,
     marginTop: 2,
+    letterSpacing: 0.3,
   },
   fullscreenExit: {
     position: 'absolute',
-    top: 50,
-    right: 15,
-    padding: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    right: 16,
+    width: 40,
+    height: 40,
     borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
     zIndex: 10,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
+    paddingHorizontal: 40,
   },
   loadingText: {
-    marginTop: 15,
-    fontSize: 16,
+    marginTop: 4,
+    fontSize: 14,
     fontFamily: Fonts.GeistMono.SemiBold,
     color: Colors.text,
   },
   loadingSubtext: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: Fonts.GeistMono.Regular,
     color: Colors.textSecondary,
     textAlign: 'center',
-    paddingHorizontal: 40,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 40,
+    gap: 12,
   },
   errorTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontFamily: Fonts.GeistMono.Bold,
     color: Colors.text,
-    marginBottom: 10,
   },
   errorText: {
     fontSize: 14,
     fontFamily: Fonts.GeistMono.Regular,
     color: Colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 20,
+    lineHeight: 22,
   },
   retryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    backgroundColor: Colors.accent,
-    paddingHorizontal: 30,
+    gap: 8,
+    backgroundColor: '#fff',
+    paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
+    marginTop: 8,
   },
   retryButtonText: {
-    color: Colors.text,
-    fontSize: 16,
+    color: '#000',
+    fontSize: 14,
     fontFamily: Fonts.GeistMono.Bold,
   },
   readerContainer: {
     flex: 1,
     backgroundColor: '#000',
-    position: 'relative',
   },
   imageContainer: {
     flex: 1,
@@ -594,7 +577,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
   },
   controls: {
     position: 'absolute',
@@ -604,25 +587,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 15,
-    paddingHorizontal: 15,
-    backgroundColor: Colors.surface,
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(0,0,0,0.72)',
     zIndex: 100,
   },
   navButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 10,
-    paddingHorizontal: 15,
-    backgroundColor: Colors.card,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 8,
-    gap: 5,
+    gap: 4,
+    minWidth: 88,
+    justifyContent: 'center',
   },
   navButtonDisabled: {
-    opacity: 0.5,
+    opacity: 0.4,
   },
   navButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: Fonts.GeistMono.SemiBold,
     color: Colors.text,
   },
@@ -631,13 +616,13 @@ const styles = StyleSheet.create({
   },
   pageIndicator: {
     paddingVertical: 8,
-    paddingHorizontal: 16,
-    backgroundColor: Colors.card,
+    paddingHorizontal: 14,
     borderRadius: 8,
   },
   pageIndicatorText: {
-    fontSize: 14,
+    fontSize: 12,
     fontFamily: Fonts.GeistMono.Bold,
-    color: Colors.accent,
+    color: Colors.textSecondary,
+    letterSpacing: 0.5,
   },
 });

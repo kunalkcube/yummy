@@ -3,39 +3,28 @@ import { Fonts } from '@/constants/fonts';
 import { useSettings } from '@/contexts/SettingsContext';
 import { Movie, useTMDB } from '@/hooks/useTMDB';
 import { useRouter } from 'expo-router';
-import { AlertCircle, Calendar, Film, Key, Search, Star, Tv, X } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { AlertCircle, Film, Key, Search, Star, X } from 'lucide-react-native';
+import { useState } from 'react';
 import {
   ActivityIndicator,
-  Animated,
-  Dimensions,
   FlatList,
   Image,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
-
-const { width } = Dimensions.get('window');
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SearchScreen() {
   const { searchContent } = useTMDB();
   const { tmdbApiKey } = useSettings();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Movie[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [fadeAnim] = useState(new Animated.Value(0));
-
-  useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [results]);
 
   const handleSearch = async (text: string) => {
     setQuery(text);
@@ -63,65 +52,64 @@ export default function SearchScreen() {
     });
   };
 
-  const renderItem = ({ item, index }: { item: Movie; index: number }) => {
+  const renderItem = ({ item }: { item: Movie }) => {
     const posterUrl = item.poster_path
       ? `https://image.tmdb.org/t/p/w300${item.poster_path}`
       : 'https://via.placeholder.com/300x450?text=No+Image';
-    
+
     const title = item.title || item.name || 'Unknown';
-    const year = item.release_date || item.first_air_date;
-    const rating = item.vote_average ? item.vote_average.toFixed(1) : 'N/A';
+    const year = (item.release_date || item.first_air_date)?.substring(0, 4);
+    const rating = item.vote_average ? item.vote_average.toFixed(1) : null;
+    const typeLabel = item.media_type === 'tv' ? 'TV' : item.media_type === 'movie' ? 'Movie' : null;
 
     return (
-      <Animated.View style={{ opacity: fadeAnim }}>
-        <TouchableOpacity 
-          style={styles.resultItem} 
-          onPress={() => handlePress(item)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.posterContainer}>
-            <Image source={{ uri: posterUrl }} style={styles.poster} />
-            {item.media_type && (
-              <View style={[styles.badge, item.media_type === 'movie' ? styles.movieBadge : styles.tvBadge]}>
-                {item.media_type === 'movie' ? (
-                  <Film size={12} color="#fff" />
-                ) : (
-                  <Tv size={12} color="#fff" />
-                )}
-                <Text style={styles.badgeText}>{item.media_type === 'movie' ? 'Movie' : 'TV'}</Text>
-              </View>
-            )}
-          </View>
-          <View style={styles.info}>
-            <Text style={styles.title} numberOfLines={2}>{title}</Text>
-            <View style={styles.metadata}>
-              {year && (
-                <View style={styles.metaItem}>
-                  <Calendar size={14} color={Colors.textSecondary} />
-                  <Text style={styles.metaText}>{year.substring(0, 4)}</Text>
+      <TouchableOpacity
+        style={styles.resultItem}
+        onPress={() => handlePress(item)}
+        activeOpacity={0.85}
+      >
+        <Image source={{ uri: posterUrl }} style={styles.poster} />
+        <View style={styles.info}>
+          <View style={styles.metaLine}>
+            {typeLabel && <Text style={styles.metaText}>{typeLabel.toUpperCase()}</Text>}
+            {rating && (
+              <>
+                {typeLabel && <Text style={styles.metaDot}>·</Text>}
+                <View style={styles.rating}>
+                  <Star size={10} color="#FFD700" fill="#FFD700" />
+                  <Text style={styles.metaText}>{rating}</Text>
                 </View>
-              )}
-              <View style={styles.metaItem}>
-                <Star size={14} color="#FFD700" fill="#FFD700" />
-                <Text style={styles.metaText}>{rating}</Text>
-              </View>
-            </View>
-            {item.overview && (
-              <Text style={styles.overview} numberOfLines={3}>{item.overview}</Text>
+              </>
+            )}
+            {year && (
+              <>
+                <Text style={styles.metaDot}>·</Text>
+                <Text style={styles.metaText}>{year}</Text>
+              </>
             )}
           </View>
-        </TouchableOpacity>
-      </Animated.View>
+          <Text style={styles.title} numberOfLines={2}>
+            {title}
+          </Text>
+          {item.overview ? (
+            <Text style={styles.overview} numberOfLines={2}>
+              {item.overview}
+            </Text>
+          ) : null}
+        </View>
+      </TouchableOpacity>
     );
   };
 
   if (!tmdbApiKey) {
     return (
       <View style={styles.container}>
-        <View style={styles.emptyContainer}>
-          <Key size={64} color={Colors.textSecondary} />
+        <View style={[styles.emptyContainer, { paddingTop: insets.top + 80 }]}>
+          <Key size={40} color={Colors.textSecondary} />
           <Text style={styles.emptyTitle}>API Key Required</Text>
-          <Text style={styles.emptyText}>Please set your TMDB API key in Settings to search</Text>
+          <Text style={styles.emptyText}>
+            Set your TMDB API key in Settings to search
+          </Text>
         </View>
       </View>
     );
@@ -129,13 +117,13 @@ export default function SearchScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Search</Text>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <Text style={styles.headerLabel}>Search</Text>
         <View style={styles.searchContainer}>
-          <Search size={20} color={Colors.textSecondary} style={styles.searchIcon} />
+          <Search size={18} color={Colors.textSecondary} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search movies and TV shows..."
+            placeholder="Movies, TV shows..."
             placeholderTextColor={Colors.textSecondary}
             value={query}
             onChangeText={handleSearch}
@@ -144,13 +132,22 @@ export default function SearchScreen() {
             returnKeyType="search"
           />
           {query.length > 0 && (
-            <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
-              <X size={20} color={Colors.textSecondary} />
+            <TouchableOpacity
+              onPress={clearSearch}
+              style={styles.clearButton}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <X size={18} color={Colors.textSecondary} />
             </TouchableOpacity>
           )}
         </View>
+        {results.length > 0 && !isSearching && (
+          <Text style={styles.resultCount}>
+            {results.length} result{results.length === 1 ? '' : 's'}
+          </Text>
+        )}
       </View>
-      
+
       {isSearching ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.accent} />
@@ -159,29 +156,38 @@ export default function SearchScreen() {
       ) : (
         <FlatList
           data={results}
-          keyExtractor={(item) => item.id.toString()}
+          keyExtractor={(item, index) =>
+            `${item.media_type || 'unknown'}-${item.id}-${index}`
+          }
           renderItem={renderItem}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               {query.length === 0 ? (
                 <>
-                  <Search size={64} color={Colors.textSecondary} />
-                  <Text style={styles.emptyTitle}>Discover Content</Text>
-                  <Text style={styles.emptyText}>Start typing to search for movies and TV shows</Text>
+                  <Search size={40} color={Colors.textSecondary} />
+                  <Text style={styles.emptyTitle}>Discover</Text>
+                  <Text style={styles.emptyText}>
+                    Start typing to search movies and TV shows
+                  </Text>
                 </>
               ) : query.length <= 2 ? (
                 <>
-                  <Film size={64} color={Colors.textSecondary} />
-                  <Text style={styles.emptyTitle}>Keep Typing</Text>
-                  <Text style={styles.emptyText}>Enter at least 3 characters to search</Text>
+                  <Film size={40} color={Colors.textSecondary} />
+                  <Text style={styles.emptyTitle}>Keep typing</Text>
+                  <Text style={styles.emptyText}>
+                    Enter at least 3 characters to search
+                  </Text>
                 </>
               ) : (
                 <>
-                  <AlertCircle size={64} color={Colors.textSecondary} />
-                  <Text style={styles.emptyTitle}>No Results Found</Text>
-                  <Text style={styles.emptyText}>Try searching with different keywords</Text>
+                  <AlertCircle size={40} color={Colors.textSecondary} />
+                  <Text style={styles.emptyTitle}>No results</Text>
+                  <Text style={styles.emptyText}>
+                    Try different keywords
+                  </Text>
                 </>
               )}
             </View>
@@ -198,115 +204,99 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   header: {
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    backgroundColor: Colors.background,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
   },
-  headerTitle: {
-    fontSize: 34,
-    fontFamily: Fonts.GeistMono.Bold,
-    color: Colors.text,
-    marginBottom: 15,
+  headerLabel: {
+    fontSize: 13,
+    fontFamily: Fonts.GeistMono.SemiBold,
+    color: Colors.textSecondary,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    marginBottom: 12,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    height: 50,
-  },
-  searchIcon: {
-    marginRight: 10,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    height: 48,
+    gap: 10,
   },
   searchInput: {
     flex: 1,
     color: Colors.text,
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: Fonts.GeistMono.Regular,
     paddingVertical: 0,
   },
   clearButton: {
-    padding: 5,
+    padding: 2,
+  },
+  resultCount: {
+    marginTop: 12,
+    fontSize: 11,
+    fontFamily: Fonts.GeistMono.Medium,
+    color: Colors.textSecondary,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   list: {
-    padding: 20,
-    paddingTop: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 48,
+    flexGrow: 1,
   },
   resultItem: {
     flexDirection: 'row',
-    marginBottom: 20,
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  posterContainer: {
-    position: 'relative',
+    marginBottom: 16,
+    gap: 12,
   },
   poster: {
-    width: 100,
-    height: 150,
+    width: 72,
+    height: 108,
+    borderRadius: 8,
     backgroundColor: Colors.surface,
-  },
-  badge: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    gap: 4,
-  },
-  movieBadge: {
-    backgroundColor: 'rgba(220, 38, 38, 0.9)',
-  },
-  tvBadge: {
-    backgroundColor: 'rgba(37, 99, 235, 0.9)',
-  },
-  badgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontFamily: Fonts.GeistMono.Bold,
   },
   info: {
     flex: 1,
-    padding: 12,
     justifyContent: 'center',
+    paddingVertical: 2,
   },
-  title: {
-    color: Colors.text,
-    fontSize: 17,
-    fontFamily: Fonts.GeistMono.SemiBold,
-    marginBottom: 8,
-    lineHeight: 22,
-  },
-  metadata: {
+  metaLine: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-    gap: 12,
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 6,
   },
-  metaItem: {
+  metaText: {
+    color: Colors.textSecondary,
+    fontSize: 11,
+    fontFamily: Fonts.GeistMono.Medium,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  metaDot: {
+    color: Colors.border,
+    fontSize: 11,
+    fontFamily: Fonts.GeistMono.Medium,
+  },
+  rating: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  metaText: {
-    color: Colors.textSecondary,
-    fontSize: 13,
-    fontFamily: Fonts.GeistMono.Regular,
+  title: {
+    color: Colors.text,
+    fontSize: 15,
+    fontFamily: Fonts.GeistMono.SemiBold,
+    marginBottom: 6,
+    lineHeight: 20,
   },
   overview: {
     color: Colors.textSecondary,
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: Fonts.GeistMono.Regular,
     lineHeight: 18,
   },
@@ -314,32 +304,33 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 15,
+    gap: 14,
   },
   loadingText: {
     color: Colors.textSecondary,
-    fontSize: 16,
+    fontSize: 13,
     fontFamily: Fonts.GeistMono.Regular,
+    letterSpacing: 0.5,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 100,
+    paddingTop: 80,
     paddingHorizontal: 40,
   },
   emptyTitle: {
     color: Colors.text,
-    fontSize: 22,
+    fontSize: 16,
     fontFamily: Fonts.GeistMono.Bold,
-    marginTop: 20,
-    marginBottom: 10,
+    marginTop: 16,
+    marginBottom: 8,
   },
   emptyText: {
     color: Colors.textSecondary,
-    fontSize: 15,
+    fontSize: 13,
     fontFamily: Fonts.GeistMono.Regular,
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 20,
   },
 });
