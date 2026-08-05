@@ -8,6 +8,7 @@ import Constants from 'expo-constants';
 import { Check, Trash2 } from 'lucide-react-native';
 import { useState } from 'react';
 import {
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -393,6 +394,16 @@ export default function SettingsScreen() {
         <Text style={styles.sectionLabel}>About</Text>
         <Text style={styles.aboutText}>Yummy v{Constants.expoConfig?.version}</Text>
         <Text style={styles.aboutMeta}>Personal streaming app powered by TMDB</Text>
+        <TouchableOpacity
+          onPress={() => Linking.openURL('https://github.com/kunalkcube')}
+          activeOpacity={0.7}
+          accessibilityRole="link"
+          accessibilityLabel="Built by kunalkcube, opens GitHub"
+        >
+          <Text style={styles.aboutCredit}>
+            Built by <Text style={styles.aboutCreditLink}>kunalkcube</Text>
+          </Text>
+        </TouchableOpacity>
         <Text style={[styles.aboutMeta, styles.privacyNote]}>
           Privacy: Yummy has no backend. TMDB credentials, IPTV playlists/channels, favorites, and
           MangaPlus device IDs stay on this device (AsyncStorage). Network requests go only to the
@@ -491,6 +502,17 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontSize: 13,
     fontFamily: Fonts.GeistMono.Regular,
+  },
+  aboutCredit: {
+    color: Colors.textSecondary,
+    fontSize: 13,
+    fontFamily: Fonts.GeistMono.Regular,
+    marginTop: 8,
+  },
+  aboutCreditLink: {
+    color: Colors.text,
+    fontFamily: Fonts.GeistMono.SemiBold,
+    textDecorationLine: 'underline',
   },
   privacyNote: {
     marginTop: 12,

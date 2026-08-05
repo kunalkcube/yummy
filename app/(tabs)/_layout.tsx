@@ -1,54 +1,19 @@
-import { Colors } from '@/constants/colors';
+import { AppTabBar } from '@/components/AppTabBar';
 import { Tabs } from 'expo-router';
-import { BookOpen, Home, Radio, Search, Settings } from 'lucide-react-native';
 
 export default function TabLayout() {
   return (
     <Tabs
+      tabBar={(props) => <AppTabBar {...props} />}
       screenOptions={{
-        tabBarActiveTintColor: Colors.accent,
-        tabBarInactiveTintColor: Colors.textSecondary,
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: Colors.surface,
-          borderTopColor: Colors.border,
-        },
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <Home size={28} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="search"
-        options={{
-          title: 'Search',
-          tabBarIcon: ({ color }) => <Search size={28} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="manga"
-        options={{
-          title: 'Manga',
-          tabBarIcon: ({ color }) => <BookOpen size={28} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="iptv"
-        options={{
-          title: 'IPTV',
-          tabBarIcon: ({ color }) => <Radio size={28} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Settings',
-          tabBarIcon: ({ color }) => <Settings size={28} color={color} />,
-        }}
-      />
+      }}
+    >
+      <Tabs.Screen name="index" options={{ title: 'Home' }} />
+      <Tabs.Screen name="search" options={{ title: 'Search' }} />
+      <Tabs.Screen name="manga" options={{ title: 'Manga' }} />
+      <Tabs.Screen name="iptv" options={{ title: 'IPTV' }} />
+      <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
     </Tabs>
   );
 }
