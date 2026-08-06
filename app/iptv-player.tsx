@@ -3,9 +3,10 @@ import { Fonts } from '@/constants/fonts';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { AlertCircle, X } from 'lucide-react-native';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -72,7 +73,12 @@ const buildIptvPlayerHtml = (streamUrl: string, channelName: string) => {
 
         const post = (type) => {
           try {
-            window.ReactNativeWebView.postMessage(JSON.stringify({ type }));
+            const payload = JSON.stringify({ type: type });
+            if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+              window.ReactNativeWebView.postMessage(payload);
+            } else if (window.parent && window.parent !== window) {
+              window.parent.postMessage(payload, '*');
+            }
           } catch (_) {}
         };
 
@@ -134,12 +140,13 @@ export default function IptvPlayerScreen() {
   const [hasError, setHasError] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isWeb = Platform.OS === 'web';
 
-  const showControls = () => {
+  const showControls = useCallback(() => {
     setControlsVisible(true);
     if (hideTimer.current) clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => setControlsVisible(false), 3000);
-  };
+  }, []);
 
   const playableStreamUrl = useMemo(
     () => (isPlayableUrl(streamUrl) ? streamUrl : ''),
@@ -158,13 +165,17 @@ export default function IptvPlayerScreen() {
   );
 
   useEffect(() => {
-    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+    if (!isWeb) {
+      void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+    }
     showControls();
     return () => {
-      void ScreenOrientation.unlockAsync();
+      if (!isWeb) {
+        void ScreenOrientation.unlockAsync();
+      }
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };
-  }, []);
+  }, [isWeb, showControls]);
 
   useEffect(() => {
     if (!playableStreamUrl || hasLoaded || hasError) return;
@@ -173,9 +184,9 @@ export default function IptvPlayerScreen() {
     return () => clearTimeout(timeout);
   }, [hasError, hasLoaded, playableStreamUrl]);
 
-  const handleMessage = useCallback((event: WebViewMessageEvent) => {
+  const applyPlayerMessage = useCallback((raw: string) => {
     try {
-      const message = JSON.parse(event.nativeEvent.data) as PlayerMessage;
+      const message = JSON.parse(raw) as PlayerMessage;
       if (message.type === 'ready') {
         setHasLoaded(true);
         return;
@@ -187,6 +198,25 @@ export default function IptvPlayerScreen() {
       setHasError(true);
     }
   }, []);
+
+  const handleMessage = useCallback(
+    (event: WebViewMessageEvent) => {
+      applyPlayerMessage(event.nativeEvent.data);
+    },
+    [applyPlayerMessage]
+  );
+
+  useEffect(() => {
+    if (!isWeb) return;
+
+    const onWindowMessage = (event: MessageEvent) => {
+      if (typeof event.data !== 'string') return;
+      applyPlayerMessage(event.data);
+    };
+
+    window.addEventListener('message', onWindowMessage);
+    return () => window.removeEventListener('message', onWindowMessage);
+  }, [applyPlayerMessage, isWeb]);
 
   const headerPadding = {
     paddingTop: Math.max(insets.top, 10),
@@ -227,18 +257,35 @@ export default function IptvPlayerScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <WebView
-        source={{ html: playerHtml, baseUrl: streamOrigin }}
-        style={styles.webview}
-        originWhitelist={['http://*', 'https://*', 'about:*', 'blob:*', 'data:*']}
-        javaScriptEnabled
-        domStorageEnabled
-        allowsFullscreenVideo
-        mediaPlaybackRequiresUserAction={false}
-        onError={() => setHasError(true)}
-        onMessage={handleMessage}
-      />
+    <View
+      style={styles.container}
+      {...(isWeb
+        ? {
+            onMouseMove: showControls,
+            onTouchStart: showControls,
+          }
+        : {})}
+    >
+      {isWeb
+        ? createElement('iframe', {
+            srcDoc: playerHtml,
+            style: { width: '100%', height: '100%', border: 'none', backgroundColor: '#000' },
+            allow: 'autoplay; fullscreen; encrypted-media',
+            allowFullScreen: true,
+          })
+        : (
+          <WebView
+            source={{ html: playerHtml, baseUrl: streamOrigin }}
+            style={styles.webview}
+            originWhitelist={['http://*', 'https://*', 'about:*', 'blob:*', 'data:*']}
+            javaScriptEnabled
+            domStorageEnabled
+            allowsFullscreenVideo
+            mediaPlaybackRequiresUserAction={false}
+            onError={() => setHasError(true)}
+            onMessage={handleMessage}
+          />
+        )}
       {controlsVisible ? (
         <View style={[styles.header, headerPadding]} pointerEvents="box-none">
           <TouchableOpacity

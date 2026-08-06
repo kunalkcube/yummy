@@ -1,4 +1,5 @@
 import { AppAlert } from '@/components/AppAlert';
+import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
 import { getStreamProvider, STREAM_PROVIDERS } from '@/constants/streamProviders';
@@ -160,6 +161,7 @@ export default function SettingsScreen() {
   };
 
   return (
+    <ScreenContainer style={styles.container}>
     <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}
@@ -413,6 +415,7 @@ export default function SettingsScreen() {
 
       <View style={styles.bottomSpacer} />
     </ScrollView>
+    </ScreenContainer>
   );
 }
 

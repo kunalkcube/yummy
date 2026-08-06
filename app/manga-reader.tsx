@@ -1,3 +1,4 @@
+import { CONTENT_MAX_WIDTH, ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
 import { useMangaPlus } from '@/hooks/useMangaPlus';
@@ -14,7 +15,6 @@ import {
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
   Image,
   Pressable,
   StatusBar,
@@ -22,6 +22,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
@@ -36,8 +37,6 @@ interface Page {
   index: number;
 }
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
 export default function MangaReaderScreen() {
   const params = useLocalSearchParams<{
     chapterId: string;
@@ -48,6 +47,8 @@ export default function MangaReaderScreen() {
   }>();
 
   const router = useRouter();
+  const { width: windowWidth, height: SCREEN_HEIGHT } = useWindowDimensions();
+  const SCREEN_WIDTH = Math.min(windowWidth, CONTENT_MAX_WIDTH);
   const insets = useSafeAreaInsets();
   const mangaPlus = useMangaPlus();
   const [pages, setPages] = useState<Page[]>([]);
@@ -281,7 +282,7 @@ export default function MangaReaderScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <ScreenContainer style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor="#000" />
         {renderChromeHeader({
           title: 'Loading…',
@@ -292,13 +293,13 @@ export default function MangaReaderScreen() {
           <Text style={styles.loadingText}>Loading chapter...</Text>
           <Text style={styles.loadingSubtext}>{params.chapterTitle}</Text>
         </View>
-      </View>
+      </ScreenContainer>
     );
   }
 
   if (error || pages.length === 0) {
     return (
-      <View style={styles.container}>
+      <ScreenContainer style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor="#000" />
         {renderChromeHeader()}
         <View style={styles.errorContainer}>
@@ -314,7 +315,7 @@ export default function MangaReaderScreen() {
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScreenContainer>
     );
   }
 
@@ -322,6 +323,7 @@ export default function MangaReaderScreen() {
   const atEnd = currentPage === pages.length - 1;
 
   return (
+    <ScreenContainer style={styles.container}>
     <GestureHandlerRootView style={styles.container}>
       <StatusBar
         barStyle="light-content"
@@ -335,7 +337,7 @@ export default function MangaReaderScreen() {
               <Animated.View style={animatedStyle}>
                 <Image
                   source={{ uri: pages[currentPage].url }}
-                  style={styles.pageImage}
+                  style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }}
                   resizeMode="contain"
                   onLoadStart={() => setImageLoading(true)}
                   onLoadEnd={() => setImageLoading(false)}
@@ -441,6 +443,7 @@ export default function MangaReaderScreen() {
         )}
       </View>
     </GestureHandlerRootView>
+    </ScreenContainer>
   );
 }
 
@@ -565,10 +568,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  pageImage: {
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
   },
   imageLoadingOverlay: {
     ...StyleSheet.absoluteFillObject,

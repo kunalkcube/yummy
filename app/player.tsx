@@ -10,8 +10,8 @@ import { useSettings } from '@/contexts/SettingsContext';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { X } from 'lucide-react-native';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { createElement, useCallback, useEffect, useRef, useState } from 'react';
+import { Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
@@ -33,26 +33,28 @@ export default function PlayerScreen() {
   const insets = useSafeAreaInsets();
   const [controlsVisible, setControlsVisible] = useState(true);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isWeb = Platform.OS === 'web';
 
-  const showControls = () => {
+  const showControls = useCallback(() => {
     setControlsVisible(true);
     if (hideTimer.current) clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => setControlsVisible(false), 3000);
-  };
+  }, []);
 
   useEffect(() => {
     showControls();
     return () => {
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };
-  }, []);
+  }, [showControls]);
 
   useEffect(() => {
-    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+    if (isWeb) return;
+    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
     return () => {
-      ScreenOrientation.unlockAsync();
+      void ScreenOrientation.unlockAsync();
     };
-  }, []);
+  }, [isWeb]);
 
   const constructStreamUrl = () => {
     const provider = getStreamProvider(streamProvider);
@@ -90,25 +92,42 @@ export default function PlayerScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <WebView
-        source={{ uri: streamLink }}
-        style={styles.webview}
-        originWhitelist={['http://*', 'https://*', 'about:*', 'blob:*', 'data:*']}
-        javaScriptEnabled
-        domStorageEnabled
-        setSupportMultipleWindows={false}
-        allowsFullscreenVideo
-        mediaPlaybackRequiresUserAction={false}
-        nestedScrollEnabled
-        injectedJavaScriptBeforeContentLoaded={PLAYER_AD_BLOCK_BEFORE_JS}
-        injectedJavaScript={PLAYER_AD_BLOCK_JS}
-        injectedJavaScriptForMainFrameOnly={false}
-        onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
-        onOpenWindow={() => {
-          // Pop-up ads — discard; do not open a second window
-        }}
-      />
+    <View
+      style={styles.container}
+      {...(isWeb
+        ? {
+            onMouseMove: showControls,
+            onTouchStart: showControls,
+          }
+        : {})}
+    >
+      {isWeb
+        ? createElement('iframe', {
+            src: streamLink,
+            style: { width: '100%', height: '100%', border: 'none', backgroundColor: '#000' },
+            allow: 'autoplay; fullscreen; encrypted-media',
+            allowFullScreen: true,
+          })
+        : (
+          <WebView
+            source={{ uri: streamLink }}
+            style={styles.webview}
+            originWhitelist={['http://*', 'https://*', 'about:*', 'blob:*', 'data:*']}
+            javaScriptEnabled
+            domStorageEnabled
+            setSupportMultipleWindows={false}
+            allowsFullscreenVideo
+            mediaPlaybackRequiresUserAction={false}
+            nestedScrollEnabled
+            injectedJavaScriptBeforeContentLoaded={PLAYER_AD_BLOCK_BEFORE_JS}
+            injectedJavaScript={PLAYER_AD_BLOCK_JS}
+            injectedJavaScriptForMainFrameOnly={false}
+            onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
+            onOpenWindow={() => {
+              // Pop-up ads — discard; do not open a second window
+            }}
+          />
+        )}
 
       {controlsVisible ? (
         <View style={[styles.header, headerPadding]} pointerEvents="box-none">

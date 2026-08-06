@@ -1,5 +1,8 @@
+import { HorizontalScrollRow } from '@/components/HorizontalScrollRow';
+import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 import {
   PersonCredit,
   PersonDetails,
@@ -11,7 +14,6 @@ import { AlertCircle, ArrowLeft, User } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
   Image,
   ScrollView,
@@ -20,20 +22,21 @@ import {
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const { height, width } = Dimensions.get('window');
-const HERO_HEIGHT = height * 0.48;
-const CREDIT_WIDTH = width * 0.3;
-const CREDIT_HEIGHT = CREDIT_WIDTH * 1.55;
 
 export default function PersonScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { tmdbApiKey, fetchPersonDetails, fetchPersonCredits } = useTMDB();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { height, width } = useWindowDimensions();
+  const isDesktop = useIsDesktop();
+  const heroHeight = isDesktop ? Math.min(height * 0.48, 480) : height * 0.48;
+  const creditWidth = isDesktop ? Math.max(110, Math.min(width * 0.3, 170)) : width * 0.3;
+  const creditHeight = creditWidth * 1.55;
   const [person, setPerson] = useState<PersonDetails | null>(null);
   const [credits, setCredits] = useState<PersonCredit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,9 +74,10 @@ export default function PersonScreen() {
     return age;
   };
 
-  const renderCreditItem = ({ item }: { item: PersonCredit }) => (
+  const renderCreditItem = (item: PersonCredit, index: number) => (
     <TouchableOpacity
-      style={styles.creditCard}
+      key={`${item.media_type}-${item.id}-${index}`}
+      style={[styles.creditCard, { width: creditWidth, height: creditHeight }]}
       onPress={() =>
         router.push({
           pathname: '/details',
@@ -103,19 +107,19 @@ export default function PersonScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <ScreenContainer style={styles.container}>
         <StatusBar barStyle="light-content" />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.accent} />
           <Text style={styles.loadingText}>Loading...</Text>
         </View>
-      </View>
+      </ScreenContainer>
     );
   }
 
   if (!person) {
     return (
-      <View style={styles.container}>
+      <ScreenContainer style={styles.container}>
         <StatusBar barStyle="light-content" />
         <View style={styles.errorContainer}>
           <AlertCircle size={48} color={Colors.textSecondary} />
@@ -129,7 +133,7 @@ export default function PersonScreen() {
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScreenContainer>
     );
   }
 
@@ -169,10 +173,10 @@ export default function PersonScreen() {
   ].filter(Boolean) as { label: string; value: string }[];
 
   return (
-    <View style={styles.container}>
+    <ScreenContainer style={styles.container}>
       <StatusBar barStyle="light-content" />
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.heroContainer}>
+        <View style={[styles.heroContainer, { height: heroHeight }]}>
           {profileUrl ? (
             <Image source={{ uri: profileUrl }} style={styles.heroImage} />
           ) : (
@@ -261,21 +265,27 @@ export default function PersonScreen() {
                   </TouchableOpacity>
                 )}
               </View>
-              <FlatList
-                data={showAllCredits ? credits : credits.slice(0, 10)}
-                renderItem={renderCreditItem}
-                keyExtractor={(item, index) => `${item.media_type}-${item.id}-${index}`}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.creditsList}
-              />
+              {isDesktop ? (
+                <HorizontalScrollRow contentContainerStyle={styles.creditsList} buttonTop="38%">
+                  {(showAllCredits ? credits : credits.slice(0, 10)).map(renderCreditItem)}
+                </HorizontalScrollRow>
+              ) : (
+                <FlatList
+                  data={showAllCredits ? credits : credits.slice(0, 10)}
+                  renderItem={({ item, index }) => renderCreditItem(item, index)}
+                  keyExtractor={(item, index) => `${item.media_type}-${item.id}-${index}`}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.creditsList}
+                />
+              )}
             </View>
           )}
 
           <View style={styles.bottomSpacer} />
         </View>
       </ScrollView>
-    </View>
+    </ScreenContainer>
   );
 }
 
@@ -329,7 +339,6 @@ const styles = StyleSheet.create({
   },
   heroContainer: {
     position: 'relative',
-    height: HERO_HEIGHT,
   },
   heroImage: {
     width: '100%',
@@ -465,8 +474,6 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   creditCard: {
-    width: CREDIT_WIDTH,
-    height: CREDIT_HEIGHT,
     marginRight: 10,
     borderRadius: 8,
     overflow: 'hidden',

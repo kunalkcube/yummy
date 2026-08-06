@@ -1,5 +1,7 @@
+import { HorizontalScrollRow } from '@/components/HorizontalScrollRow';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { Movie } from '@/hooks/useTMDB';
 import { useRouter } from 'expo-router';
 import { LucideIcon } from 'lucide-react-native';
@@ -15,6 +17,7 @@ interface MovieRowProps {
 
 export const MovieRow = ({ title, movies, icon: Icon, mediaType }: MovieRowProps) => {
   const router = useRouter();
+  const isDesktop = useIsDesktop();
 
   const handlePress = (movie: Movie) => {
     const type = mediaType || movie.media_type || (movie.title ? 'movie' : 'tv');
@@ -30,16 +33,24 @@ export const MovieRow = ({ title, movies, icon: Icon, mediaType }: MovieRowProps
         {Icon && <Icon size={16} color={Colors.accent} strokeWidth={2} />}
         <Text style={styles.title}>{title}</Text>
       </View>
-      <FlatList
-        data={movies}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <MovieCard movie={item} onPress={() => handlePress(item)} />
-        )}
-        contentContainerStyle={styles.list}
-      />
+      {isDesktop ? (
+        <HorizontalScrollRow contentContainerStyle={styles.list}>
+          {movies.map((item) => (
+            <MovieCard key={item.id} movie={item} onPress={() => handlePress(item)} />
+          ))}
+        </HorizontalScrollRow>
+      ) : (
+        <FlatList
+          data={movies}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <MovieCard movie={item} onPress={() => handlePress(item)} />
+          )}
+          contentContainerStyle={styles.list}
+        />
+      )}
     </View>
   );
 };

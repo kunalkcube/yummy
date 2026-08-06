@@ -1,3 +1,4 @@
+import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
 import { IptvChannel } from '@/constants/iptv';
@@ -357,18 +358,18 @@ export default function IptvScreen() {
 
   if (loading) {
     return (
-      <View style={styles.stateContainer}>
+      <ScreenContainer style={styles.stateContainer}>
         <ActivityIndicator size="large" color={Colors.accent} />
         <Text style={styles.stateText}>
           Loading {selectedPlaylist?.name ?? 'playlist'}...
         </Text>
-      </View>
+      </ScreenContainer>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.stateContainer}>
+      <ScreenContainer style={styles.stateContainer}>
         <AlertCircle size={40} color={Colors.textSecondary} />
         <Text style={styles.errorTitle}>Playlist unavailable</Text>
         <Text style={styles.stateText}>{error}</Text>
@@ -379,11 +380,12 @@ export default function IptvScreen() {
         >
           <Text style={styles.retryButtonText}>Try Again</Text>
         </TouchableOpacity>
-      </View>
+      </ScreenContainer>
     );
   }
 
   return (
+    <ScreenContainer style={styles.container}>
     <FlatList
       style={styles.container}
       data={filteredChannels}
@@ -406,6 +408,7 @@ export default function IptvScreen() {
         </View>
       }
     />
+    </ScreenContainer>
   );
 }
 

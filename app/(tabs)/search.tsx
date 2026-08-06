@@ -1,3 +1,4 @@
+import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
 import { useSettings } from '@/contexts/SettingsContext';
@@ -103,7 +104,7 @@ export default function SearchScreen() {
 
   if (!tmdbApiKey) {
     return (
-      <View style={styles.container}>
+      <ScreenContainer style={styles.container}>
         <View style={[styles.emptyContainer, { paddingTop: insets.top + 80 }]}>
           <Key size={40} color={Colors.textSecondary} />
           <Text style={styles.emptyTitle}>API Key Required</Text>
@@ -111,12 +112,12 @@ export default function SearchScreen() {
             Set your TMDB API key in Settings to search
           </Text>
         </View>
-      </View>
+      </ScreenContainer>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <ScreenContainer style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Text style={styles.headerLabel}>Search</Text>
         <View style={styles.searchContainer}>
@@ -194,7 +195,7 @@ export default function SearchScreen() {
           }
         />
       )}
-    </View>
+    </ScreenContainer>
   );
 }
 

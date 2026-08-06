@@ -1,8 +1,10 @@
 import { MovieRow } from '@/components/MovieRow';
 import { ProviderChips } from '@/components/ProviderChips';
+import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
 import { STREAMING_PROVIDERS } from '@/constants/providers';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { Movie, useTMDB } from '@/hooks/useTMDB';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -10,19 +12,16 @@ import { Film, Play, Sparkles, Star, TrendingUp, Tv } from 'lucide-react-native'
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
   Image,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const { width, height } = Dimensions.get('window');
-const HERO_HEIGHT = height * 0.6;
 
 export default function HomeScreen() {
   const {
@@ -34,6 +33,9 @@ export default function HomeScreen() {
   } = useTMDB();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+  const isDesktop = useIsDesktop();
+  const heroHeight = isDesktop ? Math.min(height * 0.6, 520) : height * 0.6;
   const [selectedProvider, setSelectedProvider] = useState<number | null>(null);
   const [trending, setTrending] = useState<Movie[]>([]);
   const [popularMovies, setPopularMovies] = useState<Movie[]>([]);
@@ -112,32 +114,32 @@ export default function HomeScreen() {
 
   if (!tmdbApiKey) {
     return (
-      <View style={styles.container}>
+      <ScreenContainer style={styles.container}>
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyLabel}>YUMMY</Text>
           <Text style={styles.emptyText}>Please set your TMDB API key in Settings</Text>
         </View>
-      </View>
+      </ScreenContainer>
     );
   }
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <ScreenContainer style={styles.container}>
         <View style={styles.emptyContainer}>
           <ActivityIndicator size="large" color={Colors.accent} />
           <Text style={styles.loadingText}>Loading content...</Text>
         </View>
-      </View>
+      </ScreenContainer>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <ScreenContainer style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {featuredMovie && (
           <TouchableOpacity
-            style={styles.heroSection}
+            style={[styles.heroSection, { height: heroHeight }]}
             activeOpacity={0.95}
             onPress={handleFeaturedPress}
           >
@@ -257,7 +259,7 @@ export default function HomeScreen() {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
-    </View>
+    </ScreenContainer>
   );
 }
 
@@ -270,8 +272,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   heroSection: {
-    width,
-    height: HERO_HEIGHT,
+    width: '100%',
     position: 'relative',
   },
   heroImage: {

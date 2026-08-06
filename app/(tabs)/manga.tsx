@@ -1,3 +1,4 @@
+import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
 import { useMangaPlus } from '@/hooks/useMangaPlus';
@@ -310,7 +311,7 @@ export default function MangaScreen() {
     trendingManga.length > 0;
 
   return (
-    <View style={styles.container}>
+    <ScreenContainer style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Text style={styles.headerLabel}>Manga</Text>
 
@@ -420,7 +421,7 @@ export default function MangaScreen() {
           </View>
         )}
       </ScrollView>
-    </View>
+    </ScreenContainer>
   );
 }
 

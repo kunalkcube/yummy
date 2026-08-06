@@ -1,5 +1,7 @@
+import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useMangaPlus } from '@/hooks/useMangaPlus';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -14,7 +16,6 @@ import {
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
   Image,
   Linking,
   ScrollView,
@@ -23,6 +24,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -49,9 +51,6 @@ interface MangaDetails {
   rating?: string;
 }
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const HERO_HEIGHT = SCREEN_HEIGHT * 0.48;
-
 const CHAPTERS_PER_PAGE = 20;
 const PAGINATION_THRESHOLD = 30;
 
@@ -76,6 +75,9 @@ export default function MangaDetailsScreen() {
 
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+  const isDesktop = useIsDesktop();
+  const heroHeight = isDesktop ? Math.min(height * 0.48, 480) : height * 0.48;
   const mangaPlus = useMangaPlus();
   const [details, setDetails] = useState<MangaDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -295,19 +297,19 @@ export default function MangaDetailsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <ScreenContainer style={styles.container}>
         <StatusBar barStyle="light-content" />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.accent} />
           <Text style={styles.loadingText}>Loading manga details...</Text>
         </View>
-      </View>
+      </ScreenContainer>
     );
   }
 
   if (error || !details) {
     return (
-      <View style={styles.container}>
+      <ScreenContainer style={styles.container}>
         <StatusBar barStyle="light-content" />
         <View style={styles.errorContainer}>
           <AlertCircle size={48} color={Colors.textSecondary} />
@@ -321,7 +323,7 @@ export default function MangaDetailsScreen() {
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScreenContainer>
     );
   }
 
@@ -343,10 +345,10 @@ export default function MangaDetailsScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <ScreenContainer style={styles.container}>
       <StatusBar barStyle="light-content" />
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.heroContainer}>
+        <View style={[styles.heroContainer, { height: heroHeight }]}>
           <Image source={{ uri: details.coverImage }} style={styles.backdrop} blurRadius={8} />
 
           <LinearGradient
@@ -544,7 +546,7 @@ export default function MangaDetailsScreen() {
           <View style={styles.bottomSpacer} />
         </View>
       </ScrollView>
-    </View>
+    </ScreenContainer>
   );
 }
 
@@ -597,7 +599,6 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.GeistMono.Bold,
   },
   heroContainer: {
-    height: HERO_HEIGHT,
     position: 'relative',
   },
   backdrop: {

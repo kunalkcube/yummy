@@ -1,5 +1,7 @@
+import { CONTENT_MAX_WIDTH } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import * as Haptics from 'expo-haptics';
 import { BookOpen, Home, Radio, Search, Settings } from 'lucide-react-native';
@@ -20,9 +22,10 @@ const TAB_META: Record<
 export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const bottomPad = Math.max(insets.bottom, 10);
+  const isDesktop = useIsDesktop();
 
-  return (
-    <View style={[styles.wrap, { paddingBottom: bottomPad }]}>
+  const tabs = (
+    <>
       <View style={styles.rule} />
       <View style={styles.row}>
         {state.routes.map((route, index) => {
@@ -82,12 +85,33 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
           );
         })}
       </View>
+    </>
+  );
+
+  if (!isDesktop) {
+    return <View style={[styles.wrapMobile, { paddingBottom: bottomPad }]}>{tabs}</View>;
+  }
+
+  return (
+    <View style={[styles.outer, { paddingBottom: bottomPad }]}>
+      <View style={styles.wrapDesktop}>{tabs}</View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: {
+  outer: {
+    width: '100%',
+    backgroundColor: Colors.background,
+  },
+  wrapMobile: {
+    backgroundColor: Colors.background,
+    paddingTop: 0,
+  },
+  wrapDesktop: {
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: 'center',
     backgroundColor: Colors.background,
     paddingTop: 0,
   },

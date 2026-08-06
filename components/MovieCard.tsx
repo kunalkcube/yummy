@@ -1,12 +1,10 @@
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { Movie } from '@/hooks/useTMDB';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Star } from 'lucide-react-native';
-import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-
-const CARD_WIDTH = Dimensions.get('window').width * 0.3;
-const CARD_HEIGHT = CARD_WIDTH * 1.55;
+import { Image, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 
 interface MovieCardProps {
   movie: Movie;
@@ -14,6 +12,13 @@ interface MovieCardProps {
 }
 
 export const MovieCard = ({ movie, onPress }: MovieCardProps) => {
+  const { width } = useWindowDimensions();
+  const isDesktop = useIsDesktop();
+  const cardWidth = isDesktop
+    ? Math.max(110, Math.min(width * 0.3, 170))
+    : width * 0.3;
+  const cardHeight = cardWidth * 1.55;
+
   const posterUrl = movie.poster_path
     ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
     : 'https://via.placeholder.com/500x750?text=No+Image';
@@ -22,7 +27,11 @@ export const MovieCard = ({ movie, onPress }: MovieCardProps) => {
   const year = (movie.release_date || movie.first_air_date)?.substring(0, 4);
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity
+      style={[styles.card, { width: cardWidth, height: cardHeight }]}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
       <Image source={{ uri: posterUrl }} style={styles.poster} resizeMode="cover" />
 
       <LinearGradient
@@ -49,8 +58,6 @@ export const MovieCard = ({ movie, onPress }: MovieCardProps) => {
 
 const styles = StyleSheet.create({
   card: {
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT,
     marginRight: 10,
     borderRadius: 8,
     overflow: 'hidden',

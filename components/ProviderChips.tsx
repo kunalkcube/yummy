@@ -1,7 +1,8 @@
+import { HorizontalScrollRow } from '@/components/HorizontalScrollRow';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
 import { StreamingProvider } from '@/constants/providers';
-import React from 'react';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface ProviderChipsProps {
@@ -15,43 +16,63 @@ export const ProviderChips = ({
   selectedProvider,
   onSelectProvider,
 }: ProviderChipsProps) => {
-  return (
-    <View style={styles.container}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+  const isDesktop = useIsDesktop();
+
+  const chips = (
+    <>
+      <TouchableOpacity
+        style={[styles.chip, selectedProvider === null && styles.chipSelected]}
+        onPress={() => onSelectProvider(null)}
+        activeOpacity={0.8}
       >
-        <TouchableOpacity
-          style={[styles.chip, selectedProvider === null && styles.chipSelected]}
-          onPress={() => onSelectProvider(null)}
-          activeOpacity={0.8}
+        <View style={styles.allChipIcon}>
+          <Text style={styles.allChipText}>ALL</Text>
+        </View>
+      </TouchableOpacity>
+
+      {providers.map((provider) => {
+        const logoUrl = `https://image.tmdb.org/t/p/original${provider.logo_path}`;
+
+        return (
+          <TouchableOpacity
+            key={provider.id}
+            style={[
+              styles.chip,
+              selectedProvider === provider.id && styles.chipSelected,
+              selectedProvider === provider.id && { borderColor: provider.color },
+            ]}
+            onPress={() => onSelectProvider(provider.id)}
+            activeOpacity={0.8}
+          >
+            <Image source={{ uri: logoUrl }} style={styles.providerLogo} resizeMode="contain" />
+          </TouchableOpacity>
+        );
+      })}
+    </>
+  );
+
+  if (!isDesktop) {
+    return (
+      <View style={styles.container}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
         >
-          <View style={styles.allChipIcon}>
-            <Text style={styles.allChipText}>ALL</Text>
-          </View>
-        </TouchableOpacity>
+          {chips}
+        </ScrollView>
+      </View>
+    );
+  }
 
-        {providers.map((provider) => {
-          const logoUrl = `https://image.tmdb.org/t/p/original${provider.logo_path}`;
-
-          return (
-            <TouchableOpacity
-              key={provider.id}
-              style={[
-                styles.chip,
-                selectedProvider === provider.id && styles.chipSelected,
-                selectedProvider === provider.id && { borderColor: provider.color },
-              ]}
-              onPress={() => onSelectProvider(provider.id)}
-              activeOpacity={0.8}
-            >
-              <Image source={{ uri: logoUrl }} style={styles.providerLogo} resizeMode="contain" />
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-    </View>
+  return (
+    <HorizontalScrollRow
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      buttonTop={12}
+    >
+      {chips}
+    </HorizontalScrollRow>
   );
 };
 

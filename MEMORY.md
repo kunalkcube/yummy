@@ -5,7 +5,7 @@
 **Yummy** is a personal media client (`v2.0.0`) that combines:
 
 1. TMDB discovery for movies, TV shows, people, cast, and recommendations.
-2. Configurable third-party streaming-provider embeds in a WebView (`app/player.tsx`).
+2. Configurable third-party streaming-provider embeds (`app/player.tsx`: WebView on native, `<iframe>` on web/Tauri).
 3. Public direct IPTV playback from IPTV-org and saved M3U playlists.
 4. Manga discovery and reading via MangaPlus, MangaDex, and AniList.
 
@@ -56,7 +56,7 @@ flowchart TD
 | `/iptv-player` | Direct Plyr IPTV playback | `channelName`, `streamUrl` |
 | `/manga-details` | Source-specific metadata and chapter selection | manga ID, source, display metadata |
 | `/manga-reader` | Page reader with zoom/pan and navigation | chapter ID/title, manga title, source |
-| `/player` | Third-party stream provider WebView | `id`, `type`, `title`, `season?`, `episode?` |
+| `/player` | Third-party stream provider embed | `id`, `type`, `title`, `season?`, `episode?` — WebView native / iframe web |
 
 Root navigation is in `app/_layout.tsx`. It preloads the four Geist Mono weights, holds the splash until fonts resolve, wraps routes in `SettingsProvider` and `AlertProvider`, forces React Navigation's dark theme, and invokes `useVersionCheck()`.
 
@@ -96,7 +96,7 @@ Provider-filtered popularity uses the `IN` region. Curated provider IDs/logos li
 
 ### IPTV
 
-`constants/iptv.ts` defines the built-in IPTV-org category playlist. `hooks/useIptv.ts` parses `#EXTINF` into validated `IptvChannel` records, accepts only public HTTPS playlists without embedded credentials, accepts public direct HTTP(S) streams, caps playlists at 20,000 channels / 10 MB, and ignores playlist-provided header directives. The IPTV tab uses a virtualized `FlatList`, group/query filters, favorites/recents, and ignores stale load responses. `app/iptv-player.tsx` plays public HLS or MP4/M4V/WebM via hls.js + Plyr; it fails closed after 25 seconds for bad/DRM/origin-restricted streams.
+`constants/iptv.ts` defines the built-in IPTV-org category playlist. `hooks/useIptv.ts` parses `#EXTINF` into validated `IptvChannel` records, accepts only public HTTPS playlists without embedded credentials, accepts public direct HTTP(S) streams, caps playlists at 20,000 channels / 10 MB, and ignores playlist-provided header directives. The IPTV tab uses a virtualized `FlatList`, group/query filters, favorites/recents, and ignores stale load responses. `app/iptv-player.tsx` plays public HLS or MP4/M4V/WebM via hls.js + Plyr (WebView on native, `iframe` + `srcDoc` on web/Tauri with `parent.postMessage` bridge); it fails closed after 25 seconds for bad/DRM/origin-restricted streams.
 
 ### Manga
 
@@ -110,7 +110,7 @@ Source selection lives in `app/(tabs)/manga.tsx`. `manga-details.tsx` fetches so
 
 ### Updates
 
-`useVersionCheck()` compares GitHub Releases for `kunalkcube/yummy` with `expo-application`'s native version. Root layout shows `UpdateAlert` when a newer release exists.
+`useVersionCheck()` compares GitHub Releases for `kunalkcube/yummy` with the running app version. On native it uses `expo-application`'s `nativeApplicationVersion`; on web/Tauri that API is always `null`, so it falls back to `Constants.expoConfig.version` (`app.json`). Root layout shows `UpdateAlert` when a newer release exists.
 
 ### Alerts
 
@@ -119,6 +119,7 @@ Source selection lives in `app/(tabs)/manga.tsx`. `manga-details.tsx` fetches so
 ## UI and Component Boundaries
 
 - Design tokens: `constants/colors.ts`, `constants/fonts.ts` (four Geist Mono weights only).
+- Desktop shell: `components/layout/ScreenContainer.tsx` centers content at `CONTENT_MAX_WIDTH` (896) when width ≥ 768 (`useIsDesktop`). Below that, mobile layout matches pre-desktop (no max-width column, uncapped heroes/cards, FlatList rows, no chevrons). `MovieCard` clamps 110–170 only on desktop. Tab chrome and `HorizontalScrollRow` chevrons follow the same breakpoint. Players stay full-bleed; web/Tauri uses `iframe`.
 - Shared chrome language: quiet uppercase labels, radius 8, white primary buttons, accent-border selection, Lucide `Star` for ratings, safe-area aware headers, translucent player chrome.
 - `MovieRow` / `MovieCard` — Home (and similar) horizontal lists → `/details`.
 - `ProviderChips` — TMDB watch-provider filter on Home.
@@ -155,7 +156,7 @@ Expo starter artifacts (themed components, `/modal`, `EmptyState`, debug helpers
 1. **IPTV and scraper volatility:** Streams, MangaDex, MangaPlus, and Consumet can break without app changes. Keep parsing defensive; test on device.
 2. **Large remote playlists:** IPTV-org is large (~14k channels). Keep lists virtualized; do not persist full remote playlists without a retention design.
 3. **No automated tests:** Rely on lint/typecheck plus manual navigation and failure-path checks.
-4. **Untrusted media surfaces:** User stream URLs and embedded WebViews are untrusted. Keep URL validation, navigation allowlists, and log redaction.
+4. **Untrusted media surfaces:** User stream URLs and embedded WebViews/iframes are untrusted. On web/Tauri, `react-native-webview` is unsupported — players use native `iframe`. Keep URL validation, navigation allowlists, and log redaction.
 
 ## Update Guidance
 

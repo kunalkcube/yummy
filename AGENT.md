@@ -38,7 +38,7 @@ Desktop (Win / Linux / macOS) uses Tauri 2 wrapping the Expo web export. Require
 | `app/` | Expo Router screens and navigation layouts |
 | `app/(tabs)/` | Home, search, manga, IPTV, and settings tabs |
 | `app/details.tsx`, `app/person.tsx` | TMDB detail screens |
-| `app/player.tsx` | Third-party streaming-provider WebView player |
+| `app/player.tsx` | Third-party streaming-provider player (WebView native / iframe web) |
 | `app/iptv-player.tsx` | Direct IPTV stream playback through Plyr |
 | `app/manga-details.tsx`, `app/manga-reader.tsx` | Manga metadata, chapters, and gesture-enabled reader |
 | `components/` | Shared media UI, `AppAlert`, and update prompt |
@@ -82,6 +82,7 @@ Desktop (Win / Linux / macOS) uses Tauri 2 wrapping the Expo web export. Require
 ### IPTV playback
 
 - `app/iptv-player.tsx` supports public direct HLS and direct-file streams through Plyr. Do not honor playlist-supplied credential/header directives or try to bypass DRM, CORS, source restrictions, or offline streams.
+- On web/Tauri use `iframe` (`srcDoc`); on native use `react-native-webview`. Desktop does not support RN WebView.
 - Check IPTV playback on a physical/emulated Android device because WebView fullscreen and media playback cannot be proven by lint alone.
 
 ## Secrets and Safety

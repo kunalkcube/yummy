@@ -1,6 +1,9 @@
+import { HorizontalScrollRow } from '@/components/HorizontalScrollRow';
 import { SeasonsList } from '@/components/SeasonsList';
+import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { CastMember, Movie, useTMDB } from '@/hooks/useTMDB';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -8,7 +11,6 @@ import { AlertCircle, ArrowLeft, Film, Play, Star, Tv, User } from 'lucide-react
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
   Image,
   ScrollView,
@@ -17,12 +19,10 @@ import {
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const { height } = Dimensions.get('window');
-const HERO_HEIGHT = height * 0.48;
 
 interface Genre {
   id: number;
@@ -34,6 +34,11 @@ export default function DetailsScreen() {
   const { fetchDetails, fetchCredits, fetchRecommendations } = useTMDB();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { height, width } = useWindowDimensions();
+  const isDesktop = useIsDesktop();
+  const heroHeight = isDesktop ? Math.min(height * 0.48, 480) : height * 0.48;
+  const recWidth = isDesktop ? Math.max(110, Math.min(width * 0.3, 170)) : width * 0.3;
+  const recHeight = recWidth * 1.55;
   const [details, setDetails] = useState<Movie | null>(null);
   const [cast, setCast] = useState<CastMember[]>([]);
   const [recommendations, setRecommendations] = useState<Movie[]>([]);
@@ -85,19 +90,19 @@ export default function DetailsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <ScreenContainer style={styles.container}>
         <StatusBar barStyle="light-content" />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.accent} />
           <Text style={styles.loadingText}>Loading details...</Text>
         </View>
-      </View>
+      </ScreenContainer>
     );
   }
 
   if (!details) {
     return (
-      <View style={styles.container}>
+      <ScreenContainer style={styles.container}>
         <StatusBar barStyle="light-content" />
         <View style={styles.errorContainer}>
           <AlertCircle size={48} color={Colors.textSecondary} />
@@ -107,7 +112,7 @@ export default function DetailsScreen() {
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScreenContainer>
     );
   }
 
@@ -136,8 +141,9 @@ export default function DetailsScreen() {
       ? `${details.number_of_seasons} Season${details.number_of_seasons > 1 ? 's' : ''}`
       : null;
 
-  const renderCastItem = ({ item }: { item: CastMember }) => (
+  const renderCastItem = (item: CastMember) => (
     <TouchableOpacity
+      key={item.id}
       style={styles.castCard}
       onPress={() => router.push({ pathname: '/person', params: { id: item.id } })}
       activeOpacity={0.85}
@@ -161,9 +167,10 @@ export default function DetailsScreen() {
     </TouchableOpacity>
   );
 
-  const renderRecommendationItem = ({ item }: { item: Movie }) => (
+  const renderRecommendationItem = (item: Movie) => (
     <TouchableOpacity
-      style={styles.recommendationCard}
+      key={item.id}
+      style={[styles.recommendationCard, { width: recWidth, height: recHeight }]}
       onPress={() => router.push({ pathname: '/details', params: { id: item.id, type } })}
       activeOpacity={0.85}
     >
@@ -187,10 +194,10 @@ export default function DetailsScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <ScreenContainer style={styles.container}>
       <StatusBar barStyle="light-content" />
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.heroContainer}>
+        <View style={[styles.heroContainer, { height: heroHeight }]}>
           {backdropUrl ? (
             <Image source={{ uri: backdropUrl }} style={styles.backdrop} />
           ) : (
@@ -303,14 +310,20 @@ export default function DetailsScreen() {
                   </TouchableOpacity>
                 )}
               </View>
-              <FlatList
-                data={showAllCast ? cast : cast.slice(0, 10)}
-                renderItem={renderCastItem}
-                keyExtractor={(item) => item.id.toString()}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.castList}
-              />
+              {isDesktop ? (
+                <HorizontalScrollRow contentContainerStyle={styles.castList} buttonTop="38%">
+                  {(showAllCast ? cast : cast.slice(0, 10)).map(renderCastItem)}
+                </HorizontalScrollRow>
+              ) : (
+                <FlatList
+                  data={showAllCast ? cast : cast.slice(0, 10)}
+                  renderItem={({ item }) => renderCastItem(item)}
+                  keyExtractor={(item) => item.id.toString()}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.castList}
+                />
+              )}
             </View>
           )}
 
@@ -342,23 +355,34 @@ export default function DetailsScreen() {
                   </TouchableOpacity>
                 )}
               </View>
-              <FlatList
-                data={
-                  showAllRecommendations ? recommendations : recommendations.slice(0, 10)
-                }
-                renderItem={renderRecommendationItem}
-                keyExtractor={(item) => item.id.toString()}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.recommendationList}
-              />
+              {isDesktop ? (
+                <HorizontalScrollRow
+                  contentContainerStyle={styles.recommendationList}
+                  buttonTop="38%"
+                >
+                  {(showAllRecommendations ? recommendations : recommendations.slice(0, 10)).map(
+                    renderRecommendationItem
+                  )}
+                </HorizontalScrollRow>
+              ) : (
+                <FlatList
+                  data={
+                    showAllRecommendations ? recommendations : recommendations.slice(0, 10)
+                  }
+                  renderItem={({ item }) => renderRecommendationItem(item)}
+                  keyExtractor={(item) => item.id.toString()}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.recommendationList}
+                />
+              )}
             </View>
           )}
 
           <View style={styles.bottomSpacer} />
         </View>
       </ScrollView>
-    </View>
+    </ScreenContainer>
   );
 }
 
@@ -412,7 +436,6 @@ const styles = StyleSheet.create({
   },
   heroContainer: {
     position: 'relative',
-    height: HERO_HEIGHT,
   },
   backdrop: {
     width: '100%',
@@ -589,8 +612,6 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   recommendationCard: {
-    width: Dimensions.get('window').width * 0.3,
-    height: Dimensions.get('window').width * 0.3 * 1.55,
     marginRight: 10,
     borderRadius: 8,
     overflow: 'hidden',
