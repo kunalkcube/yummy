@@ -18,15 +18,20 @@ export function ScreenContainer({
   maxWidth = CONTENT_MAX_WIDTH,
 }: ScreenContainerProps) {
   const isDesktop = useIsDesktop();
+  const flatStyle = StyleSheet.flatten(style) as ViewStyle | undefined;
+  const backgroundColor = flatStyle?.backgroundColor;
 
   // Mobile: single wrapper — same as pre-desktop screen roots.
   if (!isDesktop) {
     return <View style={[styles.outer, style]}>{children}</View>;
   }
 
+  // Desktop: keep gutters painted with the screen background, but apply the
+  // caller's layout styles (flex, justifyContent, etc.) on the inner column
+  // so centered loading/empty states actually center.
   return (
-    <View style={[styles.outer, style]}>
-      <View style={[styles.inner, { maxWidth }, contentStyle]}>{children}</View>
+    <View style={[styles.outer, backgroundColor != null && { backgroundColor }]}>
+      <View style={[styles.inner, { maxWidth }, style, contentStyle]}>{children}</View>
     </View>
   );
 }

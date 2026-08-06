@@ -1,6 +1,7 @@
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
+import { webInputReset } from '@/constants/inputStyles';
 import { useSettings } from '@/contexts/SettingsContext';
 import { Movie, useTMDB } from '@/hooks/useTMDB';
 import { useRouter } from 'expo-router';
@@ -231,6 +232,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: Fonts.GeistMono.Regular,
     paddingVertical: 0,
+    ...webInputReset,
   },
   clearButton: {
     padding: 2,

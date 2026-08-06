@@ -2,6 +2,7 @@ import { AppAlert } from '@/components/AppAlert';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
+import { webInputReset } from '@/constants/inputStyles';
 import { getStreamProvider, STREAM_PROVIDERS } from '@/constants/streamProviders';
 import { useSettings } from '@/contexts/SettingsContext';
 import axios from 'axios';
@@ -462,6 +463,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: Fonts.GeistMono.Regular,
     marginBottom: 12,
+    ...webInputReset,
   },
   primaryButton: {
     backgroundColor: '#fff',

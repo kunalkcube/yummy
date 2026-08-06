@@ -1,6 +1,7 @@
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
+import { webInputReset } from '@/constants/inputStyles';
 import { useMangaPlus } from '@/hooks/useMangaPlus';
 import { useRouter } from 'expo-router';
 import { AlertCircle, BookOpen, Search, TrendingUp, X } from 'lucide-react-native';
@@ -485,6 +486,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: Fonts.GeistMono.Regular,
     paddingVertical: 0,
+    ...webInputReset,
   },
   searchButton: {
     backgroundColor: '#fff',

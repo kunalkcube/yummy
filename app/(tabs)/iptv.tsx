@@ -1,6 +1,7 @@
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
+import { webInputReset } from '@/constants/inputStyles';
 import { IptvChannel } from '@/constants/iptv';
 import { useSettings } from '@/contexts/SettingsContext';
 import { fetchIptvChannels } from '@/hooks/useIptv';
@@ -358,28 +359,32 @@ export default function IptvScreen() {
 
   if (loading) {
     return (
-      <ScreenContainer style={styles.stateContainer}>
-        <ActivityIndicator size="large" color={Colors.accent} />
-        <Text style={styles.stateText}>
-          Loading {selectedPlaylist?.name ?? 'playlist'}...
-        </Text>
+      <ScreenContainer style={styles.container}>
+        <View style={styles.stateContainer}>
+          <ActivityIndicator size="large" color={Colors.accent} />
+          <Text style={styles.stateText}>
+            Loading {selectedPlaylist?.name ?? 'playlist'}...
+          </Text>
+        </View>
       </ScreenContainer>
     );
   }
 
   if (error) {
     return (
-      <ScreenContainer style={styles.stateContainer}>
-        <AlertCircle size={40} color={Colors.textSecondary} />
-        <Text style={styles.errorTitle}>Playlist unavailable</Text>
-        <Text style={styles.stateText}>{error}</Text>
-        <TouchableOpacity
-          style={styles.retryButton}
-          onPress={() => selectedPlaylist && void loadPlaylist(selectedPlaylist.id)}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.retryButtonText}>Try Again</Text>
-        </TouchableOpacity>
+      <ScreenContainer style={styles.container}>
+        <View style={styles.stateContainer}>
+          <AlertCircle size={40} color={Colors.textSecondary} />
+          <Text style={styles.errorTitle}>Playlist unavailable</Text>
+          <Text style={styles.stateText}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => selectedPlaylist && void loadPlaylist(selectedPlaylist.id)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.retryButtonText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
       </ScreenContainer>
     );
   }
@@ -473,6 +478,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.GeistMono.Regular,
     fontSize: 15,
     paddingVertical: 0,
+    ...webInputReset,
   },
   quickSection: {
     marginBottom: 18,

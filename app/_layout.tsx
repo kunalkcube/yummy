@@ -1,5 +1,6 @@
 import { AlertProvider } from '@/components/AppAlert';
 import UpdateAlert from '@/components/UpdateAlert';
+import { WebInputReset } from '@/components/WebInputReset';
 import { SettingsProvider } from '@/contexts/SettingsContext';
 import { useVersionCheck } from '@/hooks/useVersionCheck';
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
@@ -48,6 +49,7 @@ export default function RootLayout() {
     <SettingsProvider>
       <AlertProvider>
         <ThemeProvider value={DarkTheme}>
+          <WebInputReset />
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="details" options={{ headerShown: false }} />
