@@ -45,5 +45,8 @@ app-example
 
 *.keystore
 
+# Tauri
+src-tauri/target/
+src-tauri/gen/schemas
 
 .vscode/

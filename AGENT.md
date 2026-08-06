@@ -23,9 +23,13 @@ npm run ios
 npm run web
 npm run lint
 npx tsc --noEmit
+npm run tauri:dev
+npm run tauri:build
 ```
 
 There is currently no test runner or test script. Run `npm run lint` for every code change and use the most focused available validation (for example, `npx tsc --noEmit` for TypeScript changes). Do not start a long-running Expo server as a validation substitute.
+
+Desktop (Win / Linux / macOS) uses Tauri 2 wrapping the Expo web export. Requires Rust (`rustc`/`cargo`) and platform WebView deps. `tauri:dev` starts Expo web then the native shell; `tauri:build` runs `expo export -p web` into `dist/` then bundles installers.
 
 ## Project Map
 
@@ -45,6 +49,7 @@ There is currently no test runner or test script. Run `npm run lint` for every c
 | `hooks/useVersionCheck.ts` | GitHub Release update check |
 | `constants/` | Colors, fonts, stream providers, TMDB provider filters, IPTV types |
 | `assets/` | App icons, splash image, and bundled Geist Mono fonts |
+| `src-tauri/` | Tauri 2 desktop shell (Win / Linux / macOS) |
 
 ## Architecture and Conventions
 
@@ -87,10 +92,11 @@ There is currently no test runner or test script. Run `npm run lint` for every c
 - TMDB credentials are entered in Settings and stored in AsyncStorage — not read from env by product code.
 - Privacy: Yummy has no backend. Device-local storage only; summary in Settings → About. IPTV streams and public manga APIs can change or block clients; guard parsing and preserve fallback/error UI.
 
-## Release (personal APK)
+## Release (personal APK / desktop)
 
 - Splash/adaptive icon backgrounds use `#000000` to match the dark UI (`app.json`).
-- Build locally with `npm run android` / EAS Build when configured. Keep keystores and credentials out of git.
+- Build Android locally with `npm run android` / EAS Build when configured. Keep keystores and credentials out of git.
+- Build desktop with `npm run tauri:build` (outputs under `src-tauri/target/release/bundle/`). Keep signing credentials out of git.
 - There is no CI release pipeline in-repo; document or add one only when intentionally shipping signed builds.
 - Before sharing a build: confirm Settings has no shared TMDB key you care about, and run lint/typecheck.
 

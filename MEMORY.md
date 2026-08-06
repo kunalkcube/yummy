@@ -9,7 +9,7 @@
 3. Public direct IPTV playback from IPTV-org and saved M3U playlists.
 4. Manga discovery and reading via MangaPlus, MangaDex, and AniList.
 
-The app is an Expo Router application with a dark, Netflix-inspired visual system: black/surface/card layers, red accent (`#e50914`), quiet uppercase labels, radius-8 chrome, white primary CTAs, and bundled Geist Mono (**Regular / Medium / SemiBold / Bold** only). Android is configured as `com.kunalkongkan.yummy`; web uses Expo static output. The native Android directory may exist locally but is ignored by Git.
+The app is an Expo Router application with a dark, Netflix-inspired visual system: black/surface/card layers, red accent (`#e50914`), quiet uppercase labels, radius-8 chrome, white primary CTAs, and bundled Geist Mono (**Regular / Medium / SemiBold / Bold** only). Android is configured as `com.kunalkongkan.yummy`; web uses Expo static output. Desktop (Win / Linux / macOS) is a Tauri 2 shell around that web export (`src-tauri/`, identifier `com.kunalkongkan.yummy`). The native Android directory may exist locally but is ignored by Git.
 
 ## Runtime Structure
 
@@ -140,12 +140,14 @@ Expo starter artifacts (themed components, `/modal`, `EmptyState`, debug helpers
 
 - Runtime: Expo SDK 54 / React Native 0.81 / React 19 / TypeScript 5.9.
 - Package manager: npm with committed `package-lock.json`.
-- Commands: `npm start`, `npm run android`, `npm run ios`, `npm run web`, `npm run lint`, `npm run reset-project`.
+- Commands: `npm start`, `npm run android`, `npm run ios`, `npm run web`, `npm run lint`, `npm run reset-project`, `npm run tauri:dev`, `npm run tauri:build`.
 - Splash / Android adaptive icon background: `#000000`.
 - TypeScript is strict; `@/*` resolves from the repo root.
 - ESLint: Expo flat config; ignores `dist/*`.
-- No automated test framework or in-repo CI release pipeline; personal APKs via local/`expo run` or EAS when configured. Keep keystores out of git.
-- Ignored: `dist/`, `.expo/`, `node_modules/`, `.env`, generated `/android` and `/ios`.
+- Tauri 2: `@tauri-apps/cli` in devDependencies; `src-tauri/tauri.conf.json` uses `frontendDist: ../dist`, `devUrl: http://localhost:8081`, `beforeDevCommand: npx expo start --web`, `beforeBuildCommand: npx expo export -p web`. Desktop bundles land in `src-tauri/target/release/bundle/`.
+- `metro.config.js` must block `src-tauri/**` from Metro's watcher; otherwise `tauri:dev` crashes when cargo creates/deletes temp files under `target/debug/deps`.
+- No automated test framework or in-repo CI release pipeline; personal APKs via local/`expo run` or EAS when configured; desktop via `npm run tauri:build`. Keep keystores/signing credentials out of git.
+- Ignored: `dist/`, `.expo/`, `node_modules/`, `.env`, generated `/android` and `/ios`, `src-tauri/target/`, `src-tauri/gen/schemas`.
 - Active branch historically: `github`; `v2.0.0` is the initial release tag.
 
 ## Known Maintenance Risks
