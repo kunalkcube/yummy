@@ -2,7 +2,7 @@ import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Bookmark, ChevronRight, Settings } from 'lucide-react-native';
+import { ArrowLeft, Bookmark, ChevronRight, Clock, Settings } from 'lucide-react-native';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -13,6 +13,13 @@ const LINKS = [
     hint: 'Saved movies and TV shows',
     Icon: Bookmark,
     href: '/my-list' as const,
+  },
+  {
+    key: 'watch-history',
+    label: 'Watch History',
+    hint: 'Recently played titles',
+    Icon: Clock,
+    href: '/watch-history' as const,
   },
   {
     key: 'settings',

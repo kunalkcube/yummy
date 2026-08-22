@@ -3,7 +3,7 @@ import { SeasonsList } from '@/components/SeasonsList';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
-import { LibraryMediaType } from '@/constants/library';
+import { LibraryMediaType, getFirstUnwatchedEpisode } from '@/constants/library';
 import { useLibrary } from '@/contexts/LibraryContext';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
@@ -11,7 +11,7 @@ import { CastMember, Movie, useTMDB } from '@/hooks/useTMDB';
 import { ensureStreamPlaybackReady } from '@/utils/streamPlaybackGate';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { AlertCircle, ArrowLeft, Bookmark, Film, Play, Star, Tv, User } from 'lucide-react-native';
+import { AlertCircle, ArrowLeft, Bookmark, Check, Film, Play, Star, Tv, User } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -49,6 +49,11 @@ export default function DetailsScreen() {
     toggleWatchlist,
     getContinueItem,
     recordContinueWatching,
+    isEpisodeWatched,
+    getWatchedEpisodeKeys,
+    toggleEpisodeWatched,
+    isMovieWatched,
+    toggleMovieWatched,
   } = useLibrary();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -65,10 +70,35 @@ export default function DetailsScreen() {
   const [showAllRecommendations, setShowAllRecommendations] = useState(false);
 
   const savedInWatchlist = isInWatchlist(numericId, mediaType);
+  const movieWatched =
+    mediaType === 'movie' && Number.isFinite(numericId) ? isMovieWatched(numericId) : false;
   const continueItem = useMemo(
     () => (Number.isFinite(numericId) ? getContinueItem(numericId, mediaType) : undefined),
     [getContinueItem, mediaType, numericId]
   );
+  const watchedEpisodeKeys = useMemo(
+    () => (mediaType === 'tv' && Number.isFinite(numericId) ? getWatchedEpisodeKeys(numericId) : new Set<string>()),
+    [getWatchedEpisodeKeys, mediaType, numericId]
+  );
+
+  const seasonCounts = useMemo(
+    () =>
+      (details?.seasons ?? [])
+        .filter((season) => season.season_number > 0)
+        .map((season) => ({
+          season_number: season.season_number,
+          episode_count: season.episode_count,
+        })),
+    [details?.seasons]
+  );
+
+  const playTarget = useMemo(() => {
+    if (mediaType !== 'tv') return null;
+    if (continueItem?.season != null && continueItem?.episode != null) {
+      return { season: continueItem.season, episode: continueItem.episode };
+    }
+    return getFirstUnwatchedEpisode(seasonCounts, watchedEpisodeKeys);
+  }, [continueItem, mediaType, seasonCounts, watchedEpisodeKeys]);
 
   const loadDetails = useCallback(async () => {
     if (!id || !type) return;
@@ -100,8 +130,14 @@ export default function DetailsScreen() {
       title,
     };
 
-    const playSeason = type === 'tv' ? season ?? continueItem?.season ?? 1 : undefined;
-    const playEpisode = type === 'tv' ? episode ?? continueItem?.episode ?? 1 : undefined;
+    const playSeason =
+      type === 'tv'
+        ? season ?? playTarget?.season ?? continueItem?.season ?? 1
+        : undefined;
+    const playEpisode =
+      type === 'tv'
+        ? episode ?? playTarget?.episode ?? continueItem?.episode ?? 1
+        : undefined;
 
     if (type === 'tv') {
       params.season = String(playSeason);
@@ -126,6 +162,8 @@ export default function DetailsScreen() {
             backdropPath: details.backdrop_path,
             season: playSeason,
             episode: playEpisode,
+            advance: type === 'tv',
+            seasons: type === 'tv' ? seasonCounts : undefined,
           });
         }
         router.push({
@@ -140,11 +178,36 @@ export default function DetailsScreen() {
     handleWatchNow(season, episode);
   };
 
+  const handleToggleEpisodeWatched = (season: number, episode: number) => {
+    if (!details || !Number.isFinite(numericId) || mediaType !== 'tv') return;
+    void toggleEpisodeWatched({
+      id: numericId,
+      type: 'tv',
+      title: details.title || details.name || 'Unknown',
+      posterPath: details.poster_path,
+      backdropPath: details.backdrop_path,
+      season,
+      episode,
+      seasons: seasonCounts,
+    });
+  };
+
   const handleToggleWatchlist = () => {
     if (!details || !Number.isFinite(numericId)) return;
     void toggleWatchlist({
       id: numericId,
       type: mediaType,
+      title: details.title || details.name || 'Unknown',
+      posterPath: details.poster_path,
+      backdropPath: details.backdrop_path,
+    });
+  };
+
+  const handleToggleMovieWatched = () => {
+    if (!details || !Number.isFinite(numericId) || mediaType !== 'movie') return;
+    void toggleMovieWatched({
+      id: numericId,
+      type: 'movie',
       title: details.title || details.name || 'Unknown',
       posterPath: details.poster_path,
       backdropPath: details.backdrop_path,
@@ -284,18 +347,36 @@ export default function DetailsScreen() {
             <ArrowLeft size={20} color="#fff" />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.watchlistButton, { top: insets.top + 8 }]}
-            onPress={handleToggleWatchlist}
-            activeOpacity={0.85}
-            accessibilityLabel={savedInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
-          >
-            <Bookmark
-              size={20}
-              color={savedInWatchlist ? Colors.accent : '#fff'}
-              fill={savedInWatchlist ? Colors.accent : 'none'}
-            />
-          </TouchableOpacity>
+          <View style={[styles.heroActions, { top: insets.top + 8 }]}>
+            {mediaType === 'movie' ? (
+              <TouchableOpacity
+                style={styles.heroActionButton}
+                onPress={handleToggleMovieWatched}
+                activeOpacity={0.85}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: movieWatched }}
+                accessibilityLabel={movieWatched ? 'Mark movie unwatched' : 'Mark movie watched'}
+              >
+                <Check
+                  size={20}
+                  color={movieWatched ? Colors.accent : '#fff'}
+                  strokeWidth={movieWatched ? 3 : 2}
+                />
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity
+              style={styles.heroActionButton}
+              onPress={handleToggleWatchlist}
+              activeOpacity={0.85}
+              accessibilityLabel={savedInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
+            >
+              <Bookmark
+                size={20}
+                color={savedInWatchlist ? Colors.accent : '#fff'}
+                fill={savedInWatchlist ? Colors.accent : 'none'}
+              />
+            </TouchableOpacity>
+          </View>
 
           <Animated.View
             entering={FadeInDown.duration(250)}
@@ -365,10 +446,8 @@ export default function DetailsScreen() {
           >
             <Play size={18} color="#000" fill="#000" />
             <Text style={styles.watchButtonText}>
-              {type === 'tv' &&
-              continueItem?.season != null &&
-              continueItem?.episode != null
-                ? `Continue S${continueItem.season} · E${continueItem.episode}`
+              {type === 'tv' && playTarget
+                ? `${continueItem ? 'Continue' : 'Play'} S${playTarget.season} · E${playTarget.episode}`
                 : 'Watch Now'}
             </Text>
           </TouchableOpacity>
@@ -417,6 +496,10 @@ export default function DetailsScreen() {
                 tvId={id!}
                 tvTitle={title}
                 onEpisodePress={handleEpisodePress}
+                isEpisodeWatched={(season, episode) =>
+                  isEpisodeWatched(numericId, season, episode)
+                }
+                onToggleEpisodeWatched={handleToggleEpisodeWatched}
               />
             </View>
           )}
@@ -542,16 +625,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 10,
   },
-  watchlistButton: {
+  heroActions: {
     position: 'absolute',
     right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    zIndex: 10,
+  },
+  heroActionButton: {
     backgroundColor: 'rgba(0,0,0,0.55)',
     borderRadius: 8,
     width: 40,
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 10,
   },
   heroContent: {
     position: 'absolute',

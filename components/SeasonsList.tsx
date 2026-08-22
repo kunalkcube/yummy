@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
 import { Episode, Season, useTMDB } from '@/hooks/useTMDB';
-import { ChevronDown, ChevronUp, PlayCircle } from 'lucide-react-native';
+import { Check, ChevronDown, ChevronUp, PlayCircle } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { ActivityIndicator, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -10,9 +10,18 @@ interface SeasonsListProps {
   tvId: string;
   tvTitle: string;
   onEpisodePress: (season: number, episode: number) => void;
+  isEpisodeWatched?: (season: number, episode: number) => boolean;
+  onToggleEpisodeWatched?: (season: number, episode: number) => void;
 }
 
-export const SeasonsList = ({ seasons, tvId, tvTitle, onEpisodePress }: SeasonsListProps) => {
+export const SeasonsList = ({
+  seasons,
+  tvId,
+  tvTitle,
+  onEpisodePress,
+  isEpisodeWatched,
+  onToggleEpisodeWatched,
+}: SeasonsListProps) => {
   const [expandedSeason, setExpandedSeason] = useState<number | null>(null);
   const [seasonEpisodes, setSeasonEpisodes] = useState<{ [key: number]: Episode[] }>({});
   const [loadingSeasons, setLoadingSeasons] = useState<{ [key: number]: boolean }>({});
@@ -54,35 +63,65 @@ export const SeasonsList = ({ seasons, tvId, tvTitle, onEpisodePress }: SeasonsL
     const imageUrl = episode.still_path
       ? `https://image.tmdb.org/t/p/w300${episode.still_path}`
       : 'https://via.placeholder.com/300x169?text=No+Image';
+    const watched = isEpisodeWatched?.(seasonNumber, episode.episode_number) ?? false;
 
     return (
-      <TouchableOpacity
-        key={episode.id}
-        style={styles.episodeItem}
-        onPress={() => onEpisodePress(seasonNumber, episode.episode_number)}
-        activeOpacity={0.85}
-      >
-        <View style={styles.episodeThumb}>
-          <Image source={{ uri: imageUrl }} style={styles.episodeImage} resizeMode="cover" />
-        </View>
-        <View style={styles.episodeInfo}>
-          <View style={styles.episodeHeader}>
-            <Text style={styles.episodeNumber}>{episode.episode_number}</Text>
-            <Text style={styles.episodeTitle} numberOfLines={1}>
-              {episode.name || `Episode ${episode.episode_number}`}
-            </Text>
+      <View key={episode.id} style={[styles.episodeItem, watched && styles.episodeItemWatched]}>
+        <TouchableOpacity
+          style={styles.episodeMain}
+          onPress={() => onEpisodePress(seasonNumber, episode.episode_number)}
+          activeOpacity={0.85}
+        >
+          <View style={styles.episodeThumb}>
+            <Image source={{ uri: imageUrl }} style={styles.episodeImage} resizeMode="cover" />
           </View>
-          <Text style={styles.episodeOverview} numberOfLines={2}>
-            {episode.overview || 'No description available.'}
-          </Text>
-          {episode.runtime && (
-            <Text style={styles.episodeRuntime}>{episode.runtime} min</Text>
-          )}
+          <View style={styles.episodeInfo}>
+            <View style={styles.episodeHeader}>
+              <Text style={styles.episodeNumber}>{episode.episode_number}</Text>
+              <Text
+                style={[styles.episodeTitle, watched && styles.episodeTitleWatched]}
+                numberOfLines={1}
+              >
+                {episode.name || `Episode ${episode.episode_number}`}
+              </Text>
+            </View>
+            <Text style={styles.episodeOverview} numberOfLines={2}>
+              {episode.overview || 'No description available.'}
+            </Text>
+            {episode.runtime ? (
+              <Text style={styles.episodeRuntime}>{episode.runtime} min</Text>
+            ) : null}
+          </View>
+        </TouchableOpacity>
+
+        <View style={styles.episodeActions}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => onEpisodePress(seasonNumber, episode.episode_number)}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            accessibilityRole="button"
+            accessibilityLabel={`Play episode ${episode.episode_number}`}
+          >
+            <PlayCircle size={28} color={Colors.accent} />
+          </TouchableOpacity>
+          {onToggleEpisodeWatched ? (
+            <TouchableOpacity
+              style={[styles.checkButton, watched && styles.checkButtonWatched]}
+              onPress={() => onToggleEpisodeWatched(seasonNumber, episode.episode_number)}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: watched }}
+              accessibilityLabel={
+                watched
+                  ? `Mark episode ${episode.episode_number} unwatched`
+                  : `Mark episode ${episode.episode_number} watched`
+              }
+            >
+              {watched ? <Check size={14} color="#000" strokeWidth={3} /> : null}
+            </TouchableOpacity>
+          ) : null}
         </View>
-        <View style={styles.playWrap}>
-          <PlayCircle size={28} color={Colors.accent} />
-        </View>
-      </TouchableOpacity>
+      </View>
     );
   };
 
@@ -208,12 +247,45 @@ const styles = StyleSheet.create({
   },
   episodeItem: {
     flexDirection: 'row',
-    alignItems: 'stretch',
+    alignItems: 'center',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
     minHeight: 88,
-    padding: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    gap: 10,
+  },
+  episodeItemWatched: {
+    opacity: 0.72,
+  },
+  episodeMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'stretch',
     gap: 12,
+    minWidth: 0,
+  },
+  episodeActions: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  actionButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkButton: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: Colors.textSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkButtonWatched: {
+    backgroundColor: Colors.accent,
+    borderColor: Colors.accent,
   },
   episodeThumb: {
     width: 128,
@@ -250,6 +322,9 @@ const styles = StyleSheet.create({
     color: Colors.text,
     flex: 1,
   },
+  episodeTitleWatched: {
+    color: Colors.textSecondary,
+  },
   episodeOverview: {
     fontSize: 11,
     fontFamily: Fonts.GeistMono.Regular,
@@ -261,10 +336,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: Fonts.GeistMono.Regular,
     color: Colors.textSecondary,
-  },
-  playWrap: {
-    justifyContent: 'center',
-    paddingRight: 0,
   },
   loadMoreButton: {
     flexDirection: 'row',

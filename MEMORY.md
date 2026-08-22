@@ -57,8 +57,9 @@ flowchart TD
 | `/(tabs)/search` | TMDB multi-search | TMDB credential; search starts at 3 characters |
 | `/(tabs)/manga` | Manga source selector/search | MangaDex or AniList network access |
 | `/(tabs)/iptv` | IPTV playlist, group, and channel browser | IPTV-org plus saved M3U / custom channels |
-| `/more` | Hub for My List, Settings, future links | Stack screen; opened via More (⋯) on Home |
+| `/more` | Hub for My List, Watch History, Settings, future links | Stack screen; opened via More (⋯) on Home |
 | `/my-list` | Full watchlist | `LibraryContext` watchlist |
+| `/watch-history` | Recently played titles | `LibraryContext` watch history |
 | `/settings` | Stream provider, TMDB, IPTV playlists/channels | Stack screen; via More or direct CTA |
 | `/details` | Movie/TV metadata, cast, seasons, recommendations | `id`, `type` (`movie`/`tv`) |
 | `/person` | TMDB person profile and credits | `id` |
@@ -90,9 +91,19 @@ Custom channels (`iptvChannels`) are individual direct stream URLs. They are mar
 
 Use `useSettings()` instead of direct AsyncStorage access in product features. Settings load asynchronously after mount; screens must tolerate defaults until persisted values arrive.
 
-### Library (watchlist / continue watching)
+### Library (watchlist / continue watching / history / episodes)
 
-`contexts/LibraryContext.tsx` stores TMDB titles in AsyncStorage (`@library_watchlist`, `@library_continue_watching`). Caps: 200 watchlist / 20 continue. Details bookmark toggles watchlist; starting playback records continue progress (TV keeps season/episode). Home: Continue Watching under the hero; hero Play starts stream. Full My List lives at `/my-list` via `/more` (poster grid). Provider chips are TMDB “browse by service” filters — distinct from Settings embed stream providers. Prefer AsyncStorage over SQLite for this scale.
+`contexts/LibraryContext.tsx` stores TMDB titles in AsyncStorage:
+
+| Value | AsyncStorage key | Cap |
+| --- | --- | --- |
+| Watchlist | `@library_watchlist` | 200 |
+| Continue watching | `@library_continue_watching` | 20 |
+| Watch history | `@library_watch_history` | 100 (one row per title, latest play) |
+| Watched TV episodes | `@library_watched_episodes` | map of `tvId` → `["season:episode", ...]` |
+| Watched movies | `@library_watched_movies` | movie id list |
+
+Details bookmark toggles watchlist; starting playback records history, marks the TV episode watched, and (when advancing) moves continue watching to the next episode. Movies marked watched (play or tick) are removed from continue watching and kept in history only. Season lists expose per-episode checkmarks via `toggleEpisodeWatched`. Full My List lives at `/my-list`; history at `/watch-history` via `/more`. Provider chips are TMDB “browse by service” filters — distinct from Settings embed stream providers. Prefer AsyncStorage over SQLite for this scale.
 
 ## Data and External Contracts
 
@@ -129,7 +140,7 @@ Source selection lives in `app/(tabs)/manga.tsx`. `manga-details.tsx` fetches so
 
 - Design tokens: `constants/colors.ts`, `constants/fonts.ts` (four Geist Mono weights only).
 - Desktop shell: `components/layout/ScreenContainer.tsx` centers content at `CONTENT_MAX_WIDTH` (896) when width ≥ 768 (`useIsDesktop`). Below that, mobile layout matches pre-desktop (no max-width column, uncapped heroes/cards, FlatList rows, no chevrons). `MovieCard` clamps 110–170 only on desktop. Tab chrome and `HorizontalScrollRow` chevrons follow the same breakpoint. Players stay full-bleed; web/Tauri uses `iframe`.
-- Bottom tabs: Home, Search, Manga, IPTV (4). More hub at `/more` (My List, Settings); Settings at `/settings`.
+- Bottom tabs: Home, Search, Manga, IPTV (4). More hub at `/more` (My List, Watch History, Settings); Settings at `/settings`.
 - Shared chrome language: quiet uppercase labels, radius 8, white primary buttons, accent-border selection, Lucide `Star` for ratings, safe-area aware headers, translucent player chrome.
 - `MovieRow` / `MovieCard` — Home (and similar) horizontal lists → `/details`.
 - `ProviderChips` — TMDB watch-provider filter on Home.

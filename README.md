@@ -24,6 +24,7 @@ Personal media client for movies, TV, manga, and IPTV — built with React Nativ
 - Details with cast, seasons/episodes, and recommendations
 - Person profiles and filmography
 - Play through configurable third-party embed providers (WebView) after accepting an on-device risk notice; real hostnames shown in Settings
+- Watch history, continue watching, and per-episode watched checkmarks for TV (auto-advances to the next episode)
 - In-player ad blocking (host blocklist + DOM/popup cleanup)
 
 ### Manga
@@ -38,7 +39,7 @@ Personal media client for movies, TV, manga, and IPTV — built with React Nativ
 
 ### App
 - Custom tab bar and quiet dark chrome (Geist Mono)
-- More hub (⋯) for My List and Settings — room to grow
+- More hub (⋯) for My List, Watch History, and Settings — room to grow
 - GitHub Releases update alert
 - Privacy-first: AsyncStorage only — no Yummy server
 

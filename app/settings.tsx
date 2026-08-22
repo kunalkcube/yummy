@@ -515,7 +515,7 @@ export default function SettingsScreen() {
         </TouchableOpacity>
         <Text style={[styles.aboutMeta, styles.privacyNote]}>
           Privacy: Yummy has no backend. TMDB credentials, IPTV playlists/channels, favorites,
-          watchlist, continue-watching, and stream-disclaimer acceptance stay on this device
+          watchlist, continue-watching, watch history, episode progress, and stream-disclaimer acceptance stay on this device
           (AsyncStorage). Network requests go only to the third-party APIs you use (TMDB, IPTV
           playlists, manga sources, stream embeds).
         </Text>

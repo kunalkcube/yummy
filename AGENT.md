@@ -41,12 +41,13 @@ Desktop (Win / Linux / macOS) uses Tauri 2 wrapping the Expo web export. Require
 | `app/player.tsx` | Third-party streaming-provider player (WebView native / iframe web) |
 | `app/iptv-player.tsx` | Direct IPTV stream playback through Plyr |
 | `app/manga-details.tsx`, `app/manga-reader.tsx` | Manga metadata, chapters, and gesture-enabled reader |
-| `app/more.tsx` | More hub (My List, Settings; add future links here) |
+| `app/more.tsx` | More hub (My List, Watch History, Settings; add future links here) |
 | `app/my-list.tsx` | Full watchlist screen |
+| `app/watch-history.tsx` | Recently played titles (clear / per-item remove) |
 | `app/settings.tsx` | Stream provider, TMDB, IPTV config (via More or empty-state CTA) |
 | `components/` | Shared media UI, `AppAlert`, and update prompt |
 | `contexts/SettingsContext.tsx` | Persisted TMDB, stream disclaimer/provider, IPTV playlist, favorite, and recent-channel state |
-| `contexts/LibraryContext.tsx` | Watchlist + continue watching (AsyncStorage) |
+| `contexts/LibraryContext.tsx` | Watchlist, continue watching, watch history, watched TV episodes (AsyncStorage) |
 | `hooks/useIptv.ts` | Validated M3U parsing and playlist loading |
 | `hooks/useTMDB.ts` | TMDB API client and shared media types |
 | `hooks/useVersionCheck.ts` | GitHub Release update check |
@@ -60,7 +61,7 @@ Desktop (Win / Linux / macOS) uses Tauri 2 wrapping the Expo web export. Require
 ### Routing
 
 - Routes are determined by `app/` filenames. Keep `app/_layout.tsx` in sync when adding a stack screen.
-- Main tabs are declared in `app/(tabs)/_layout.tsx` (Home, Search, Manga, IPTV). Personal destinations live under `/more` (hub) → `/my-list`, `/settings`. Home header uses a More (⋯) icon. Empty-state / stream-gate CTAs may deep-link to `/settings` directly.
+- Main tabs are declared in `app/(tabs)/_layout.tsx` (Home, Search, Manga, IPTV). Personal destinations live under `/more` (hub) → `/my-list`, `/watch-history`, `/settings`. Home header uses a More (⋯) icon. Empty-state / stream-gate CTAs may deep-link to `/settings` directly.
 - Pass route parameters with Expo Router's typed `pathname`/`params` shape used by existing screens.
 - TMDB detail routes require an `id` and `type` (`movie` or `tv`).
 - The IPTV player route receives a channel name and a validated direct HTTP(S) stream URL.

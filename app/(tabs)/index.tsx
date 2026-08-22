@@ -161,6 +161,7 @@ export default function HomeScreen() {
           backdropPath: item.backdropPath,
           season: item.season,
           episode: item.episode,
+          advance: false,
         });
         router.push({
           pathname: '/player',
@@ -207,6 +208,7 @@ export default function HomeScreen() {
           backdropPath: featuredMovie.backdrop_path,
           season: type === 'tv' ? 1 : undefined,
           episode: type === 'tv' ? 1 : undefined,
+          advance: type === 'tv',
         });
         router.push({
           pathname: '/player',
