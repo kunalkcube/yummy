@@ -42,11 +42,11 @@ export default function PlayerScreen() {
   }, []);
 
   useEffect(() => {
-    showControls();
+    hideTimer.current = setTimeout(() => setControlsVisible(false), 3000);
     return () => {
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };
-  }, [showControls]);
+  }, []);
 
   useEffect(() => {
     if (isWeb) return;

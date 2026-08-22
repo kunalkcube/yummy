@@ -168,14 +168,14 @@ export default function IptvPlayerScreen() {
     if (!isWeb) {
       void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
     }
-    showControls();
+    hideTimer.current = setTimeout(() => setControlsVisible(false), 3000);
     return () => {
       if (!isWeb) {
         void ScreenOrientation.unlockAsync();
       }
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };
-  }, [isWeb, showControls]);
+  }, [isWeb]);
 
   useEffect(() => {
     if (!playableStreamUrl || hasLoaded || hasError) return;
@@ -374,7 +374,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,

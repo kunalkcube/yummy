@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 const MANGAPLUS_BASE_URL = process.env.EXPO_PUBLIC_MANGAPLUS_BASE_URL!;
 const DEVICE_ID_KEY = '@mangaplus_device_id';
@@ -289,7 +289,7 @@ export const useMangaPlus = () => {
   };
 
   // Fetch rankings
-  const fetchRanking = async (ranking: 'hottest' | 'trending' | 'completed' = 'hottest'): Promise<MangaPlusRanking[]> => {
+  const fetchRanking = useCallback(async (ranking: 'hottest' | 'trending' | 'completed' = 'hottest'): Promise<MangaPlusRanking[]> => {
     await manager.initialize();
     const currentDeviceId = manager.getDeviceId();
     
@@ -306,10 +306,10 @@ export const useMangaPlus = () => {
     } catch (error: any) {
       return [];
     }
-  };
+  }, []);
 
   // Fetch title details
-  const fetchTitleDetails = async (titleId: number): Promise<MangaPlusTitleDetail | null> => {
+  const fetchTitleDetails = useCallback(async (titleId: number): Promise<MangaPlusTitleDetail | null> => {
     await manager.initialize();
     const currentDeviceId = manager.getDeviceId();
     
@@ -326,7 +326,7 @@ export const useMangaPlus = () => {
     } catch (error: any) {
       return null;
     }
-  };
+  }, []);
 
   // Fetch favorites
   const fetchFavorites = async () => {
@@ -427,7 +427,7 @@ export const useMangaPlus = () => {
   };
 
   // Fetch chapter pages for reading
-  const fetchChapterPages = async (chapterId: number, quality: 'low' | 'high' | 'super_high' = 'super_high'): Promise<string[]> => {
+  const fetchChapterPages = useCallback(async (chapterId: number, quality: 'low' | 'high' | 'super_high' = 'super_high'): Promise<string[]> => {
     await manager.initialize();
     const currentDeviceId = manager.getDeviceId();
     
@@ -465,7 +465,7 @@ export const useMangaPlus = () => {
     } catch (error: any) {
       return [];
     }
-  };
+  }, []);
 
   return {
     isInitialized,

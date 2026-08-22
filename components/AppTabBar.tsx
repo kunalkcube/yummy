@@ -2,7 +2,7 @@ import { CONTENT_MAX_WIDTH } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import * as Haptics from 'expo-haptics';
 import { BookOpen, Home, Radio, Search, Settings } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';

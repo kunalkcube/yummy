@@ -2,7 +2,7 @@
 
 ## Snapshot
 
-**Yummy** is a personal media client (`v2.0.0`) that combines:
+**Yummy** is a personal media client (`v2.1.0`) that combines:
 
 1. TMDB discovery for movies, TV shows, people, cast, and recommendations.
 2. Configurable third-party streaming-provider embeds (`app/player.tsx`: WebView on native, `<iframe>` on web/Tauri).
@@ -139,12 +139,14 @@ Expo starter artifacts (themed components, `/modal`, `EmptyState`, debug helpers
 
 ## Build, Quality, and Repository Facts
 
-- Runtime: Expo SDK 54 / React Native 0.81 / React 19 / TypeScript 5.9.
+- Runtime: Expo SDK 57 / React Native 0.86 / React 19.2 / TypeScript 6.
 - Package manager: npm with committed `package-lock.json`.
 - Commands: `npm start`, `npm run android`, `npm run ios`, `npm run web`, `npm run lint`, `npm run reset-project`, `npm run tauri:dev`, `npm run tauri:build`.
-- Splash / Android adaptive icon background: `#000000`.
+- Splash / Android adaptive icon background: `#000000`. New Architecture is required (SDK 55+); do not set `newArchEnabled` or `android.edgeToEdgeEnabled` in `app.json`.
 - TypeScript is strict; `@/*` resolves from the repo root.
-- ESLint: Expo flat config; ignores `dist/*`.
+- ESLint: Expo flat config (`eslint-config-expo` ~57); ignores `dist/*`. `react-hooks/set-state-in-effect` is off for intentional screen fetch effects.
+- Tab bar types come from Expo Router’s vendored React Navigation (`expo-router/js-tabs` / `expo-router/react-navigation`). Do not import `@react-navigation/*` in app code (SDK 56+).
+- `useTMDB` / key `useMangaPlus` methods are `useCallback`-stable so screen load effects do not re-fire every render.
 - Tauri 2: `@tauri-apps/cli` in devDependencies; `src-tauri/tauri.conf.json` uses `frontendDist: ../dist`, `devUrl: http://localhost:8081`, `beforeDevCommand: npx expo start --web`, `beforeBuildCommand: npx expo export -p web`. Desktop bundles land in `src-tauri/target/release/bundle/`.
 - `metro.config.js` must block `src-tauri/**` from Metro's watcher; otherwise `tauri:dev` crashes when cargo creates/deletes temp files under `target/debug/deps`.
 - No automated test framework or in-repo CI release pipeline; personal APKs via local/`expo run` or EAS when configured; desktop via `npm run tauri:build`. Keep keystores/signing credentials out of git.

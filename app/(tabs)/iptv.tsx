@@ -79,12 +79,6 @@ export default function IptvScreen() {
   );
 
   useEffect(() => {
-    if (!selectedPlaylist && iptvPlaylists[0]) {
-      setSelectedPlaylistId(iptvPlaylists[0].id);
-    }
-  }, [iptvPlaylists, selectedPlaylist]);
-
-  useEffect(() => {
     if (selectedPlaylist) {
       void loadPlaylist(selectedPlaylist.id);
     }

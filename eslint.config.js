@@ -7,4 +7,10 @@ module.exports = defineConfig([
   {
     ignores: ['dist/*'],
   },
+  {
+    // Fetch-on-mount screens set loading state in effects; keep that pattern.
+    rules: {
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
 ]);

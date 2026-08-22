@@ -3,7 +3,7 @@ import UpdateAlert from '@/components/UpdateAlert';
 import { WebInputReset } from '@/components/WebInputReset';
 import { SettingsProvider } from '@/contexts/SettingsContext';
 import { useVersionCheck } from '@/hooks/useVersionCheck';
-import { DarkTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, ThemeProvider } from 'expo-router/react-navigation';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';

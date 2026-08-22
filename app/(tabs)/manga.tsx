@@ -42,6 +42,7 @@ export default function MangaScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const mangaPlus = useMangaPlus();
+  const { isInitialized, fetchRanking } = mangaPlus;
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<MangaResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,31 +51,35 @@ export default function MangaScreen() {
   const [trendingManga, setTrendingManga] = useState<MangaResult[]>([]);
 
   useEffect(() => {
-    if (mangaPlus.isInitialized && selectedSource === 'mangaplus') {
-      loadMangaPlusTrending();
-    }
-  }, [mangaPlus.isInitialized, selectedSource]);
+    if (!isInitialized || selectedSource !== 'mangaplus') return;
 
-  const loadMangaPlusTrending = async () => {
-    try {
-      const rankings = await mangaPlus.fetchRanking('hottest');
-      const trending = rankings.slice(0, 20).flatMap((ranking) =>
-        ranking.titles
-          .filter((title) => title.language === 'ENGLISH')
-          .map((title) => ({
-            id: title.titleId.toString(),
-            title: title.name,
-            coverImage: title.portraitImageUrl,
-            description: '',
-            status: title.titleUpdateStatus,
-            author: title.author,
-            viewCount: title.viewCount,
-            source: 'mangaplus' as const,
-          }))
-      );
-      setTrendingManga(trending);
-    } catch { }
-  };
+    let cancelled = false;
+    void (async () => {
+      try {
+        const rankings = await fetchRanking('hottest');
+        if (cancelled) return;
+        const trending = rankings.slice(0, 20).flatMap((ranking) =>
+          ranking.titles
+            .filter((title) => title.language === 'ENGLISH')
+            .map((title) => ({
+              id: title.titleId.toString(),
+              title: title.name,
+              coverImage: title.portraitImageUrl,
+              description: '',
+              status: title.titleUpdateStatus,
+              author: title.author,
+              viewCount: title.viewCount,
+              source: 'mangaplus' as const,
+            }))
+        );
+        setTrendingManga(trending);
+      } catch { }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isInitialized, selectedSource, fetchRanking]);
 
   const searchMangaDex = async (query: string) => {
     try {
@@ -102,7 +107,7 @@ export default function MangaScreen() {
           source: 'mangadex' as const,
         };
       });
-    } catch (err) {
+    } catch {
       return [];
     }
   };
@@ -170,7 +175,7 @@ export default function MangaScreen() {
         chapters: manga.chapters,
         source: 'anilist' as const,
       }));
-    } catch (err: any) {
+    } catch {
       throw new Error('AniList API is currently unavailable. Try MangaDex instead.');
     }
   };
@@ -193,7 +198,7 @@ export default function MangaScreen() {
             source: 'mangaplus' as const,
           }))
       );
-    } catch (err) {
+    } catch {
       return [];
     }
   };

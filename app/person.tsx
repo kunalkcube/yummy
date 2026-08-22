@@ -11,7 +11,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AlertCircle, ArrowLeft, User } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -42,26 +42,27 @@ export default function PersonScreen() {
   const [loading, setLoading] = useState(true);
   const [showAllCredits, setShowAllCredits] = useState(false);
 
-  useEffect(() => {
-    loadPersonDetails();
-  }, [id, tmdbApiKey]);
-
-  const loadPersonDetails = async () => {
+  const loadPersonDetails = useCallback(async () => {
     if (!id || !tmdbApiKey) {
       setLoading(false);
       return;
     }
     setLoading(true);
+    try {
+      const [personData, creditsData] = await Promise.all([
+        fetchPersonDetails(Number(id)),
+        fetchPersonCredits(Number(id)),
+      ]);
+      setPerson(personData);
+      setCredits(creditsData);
+    } finally {
+      setLoading(false);
+    }
+  }, [id, tmdbApiKey, fetchPersonDetails, fetchPersonCredits]);
 
-    const [personData, creditsData] = await Promise.all([
-      fetchPersonDetails(Number(id)),
-      fetchPersonCredits(Number(id)),
-    ]);
-    setPerson(personData);
-    setCredits(creditsData);
-
-    setLoading(false);
-  };
+  useEffect(() => {
+    void loadPersonDetails();
+  }, [loadPersonDetails]);
 
   const calculateAge = (birthday: string) => {
     const birthDate = new Date(birthday);
@@ -350,7 +351,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   gradient: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   backButton: {
     position: 'absolute',

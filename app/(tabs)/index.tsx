@@ -46,46 +46,61 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadContent();
-  }, [tmdbApiKey, selectedProvider]);
+    let cancelled = false;
 
-  const loadContent = async () => {
-    if (!tmdbApiKey) {
-      setLoading(false);
-      return;
-    }
+    void (async () => {
+      if (!tmdbApiKey) {
+        setLoading(false);
+        return;
+      }
 
-    setLoading(true);
+      setLoading(true);
 
-    if (selectedProvider) {
-      const [moviesData, tvData] = await Promise.all([
-        fetchPopular('movie', selectedProvider),
-        fetchPopular('tv', selectedProvider),
-      ]);
-      setTrending([]);
-      setPopularMovies(moviesData);
-      setPopularTV(tvData);
-      setTopRatedMovies([]);
-      setUpcomingMovies([]);
-      setFeaturedMovie(moviesData[0] || null);
-    } else {
-      const [trendingData, moviesData, tvData, topRatedData, upcomingData] = await Promise.all([
-        fetchTrending(),
-        fetchPopular('movie'),
-        fetchPopular('tv'),
-        fetchTopRated('movie'),
-        fetchUpcoming(),
-      ]);
-      setTrending(trendingData);
-      setPopularMovies(moviesData);
-      setPopularTV(tvData);
-      setTopRatedMovies(topRatedData);
-      setUpcomingMovies(upcomingData);
-      setFeaturedMovie(trendingData[0] || moviesData[0] || null);
-    }
+      try {
+        if (selectedProvider) {
+          const [moviesData, tvData] = await Promise.all([
+            fetchPopular('movie', selectedProvider),
+            fetchPopular('tv', selectedProvider),
+          ]);
+          if (cancelled) return;
+          setTrending([]);
+          setPopularMovies(moviesData);
+          setPopularTV(tvData);
+          setTopRatedMovies([]);
+          setUpcomingMovies([]);
+          setFeaturedMovie(moviesData[0] || null);
+        } else {
+          const [trendingData, moviesData, tvData, topRatedData, upcomingData] = await Promise.all([
+            fetchTrending(),
+            fetchPopular('movie'),
+            fetchPopular('tv'),
+            fetchTopRated('movie'),
+            fetchUpcoming(),
+          ]);
+          if (cancelled) return;
+          setTrending(trendingData);
+          setPopularMovies(moviesData);
+          setPopularTV(tvData);
+          setTopRatedMovies(topRatedData);
+          setUpcomingMovies(upcomingData);
+          setFeaturedMovie(trendingData[0] || moviesData[0] || null);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
 
-    setLoading(false);
-  };
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    tmdbApiKey,
+    selectedProvider,
+    fetchPopular,
+    fetchTrending,
+    fetchTopRated,
+    fetchUpcoming,
+  ]);
 
   const handleProviderSelect = (providerId: number | null) => {
     setSelectedProvider(providerId);
@@ -281,7 +296,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   heroGradient: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   wordmark: {
     position: 'absolute',

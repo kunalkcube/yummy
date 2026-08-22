@@ -6,9 +6,9 @@ Yummy is a personal React Native media app built with Expo. It browses TMDB movi
 
 ## Stack
 
-- Expo SDK 54, React 19, React Native 0.81, TypeScript (strict)
-- Expo Router 6 for file-based navigation
-- React Navigation tabs/stack, React Native WebView, Gesture Handler/Reanimated
+- Expo SDK 57, React 19.2, React Native 0.86, TypeScript (strict)
+- Expo Router 57 for file-based navigation
+- React Navigation tabs/stack (via Expo Router), React Native WebView, Gesture Handler/Reanimated
 - Axios and `fetch` for external APIs
 - AsyncStorage for device-local settings and MangaPlus device credentials
 - ESLint via `eslint-config-expo`
@@ -76,6 +76,8 @@ Desktop (Win / Linux / macOS) uses Tauri 2 wrapping the Expo web export. Require
 - Bundled Geist Mono weights in use: **Regular**, **Medium**, **SemiBold**, **Bold** only. Do not reintroduce unused weights.
 - Prefer quiet uppercase section labels, radius-8 controls, white primary CTAs, accent-border selected chips, Lucide icons (including `Star` for ratings — no emoji stars), and safe-area insets on headers.
 - Use `Colors` and `Fonts.GeistMono` rather than ad-hoc replacements for shared tokens.
+- Do not import `@react-navigation/*` in app code (SDK 56+). Use `expo-router/react-navigation`, `expo-router/js-tabs`, etc.
+- TMDB/MangaPlus clients expose stable `useCallback` fetchers. Screen loads use `useCallback` + `useEffect([loader])` (or a cancelable effect on Home); do not put unstable function identities in effect deps.
 - Keep screen-local `StyleSheet.create` styles and functional-component patterns unless extracting a genuinely shared component.
 - Alerts: use `AppAlert.alert(title, message?, buttons?)` from `components/AppAlert.tsx`. Do not use React Native `Alert`. The root layout mounts `AlertProvider`.
 

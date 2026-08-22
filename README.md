@@ -44,7 +44,7 @@ Personal media client for movies, TV, manga, and IPTV — built with React Nativ
 
 ## Stack
 
-- Expo SDK 54 · React Native 0.81 · React 19 · TypeScript
+- Expo SDK 57 · React Native 0.86 · React 19.2 · TypeScript
 - Expo Router · AsyncStorage · WebView · Reanimated
 
 ## Prerequisites

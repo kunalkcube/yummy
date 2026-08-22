@@ -13,7 +13,7 @@ import {
   ExternalLink,
   Heart,
 } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -79,43 +79,140 @@ export default function MangaDetailsScreen() {
   const isDesktop = useIsDesktop();
   const heroHeight = isDesktop ? Math.min(height * 0.48, 480) : height * 0.48;
   const mangaPlus = useMangaPlus();
+  const { isInitialized, fetchTitleDetails, addFavorite, removeFavorite } = mangaPlus;
   const [details, setDetails] = useState<MangaDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [displayedChapterCount, setDisplayedChapterCount] = useState(20);
   const [isFavorite, setIsFavorite] = useState(false);
 
-  useEffect(() => {
-    if (params.source === 'mangaplus' && !mangaPlus.isInitialized) {
-      const timer = setTimeout(() => {
-        if (mangaPlus.isInitialized) {
-          loadMangaDetails();
-        }
-      }, 1000);
-      return () => clearTimeout(timer);
-    } else {
-      loadMangaDetails();
-    }
-  }, [params.id, params.source, mangaPlus.isInitialized]);
-
-  const loadMangaDetails = async () => {
+  const loadMangaDetails = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
       if (params.source === 'mangaplus') {
-        await loadMangaPlusDetails();
+        const titleDetails = await fetchTitleDetails(parseInt(params.id));
+        if (!titleDetails) {
+          throw new Error('Failed to fetch MangaPlus details');
+        }
+
+        const allChapters: Chapter[] = [];
+        (titleDetails.chapterListV2 || []).forEach((ch: any) => {
+          allChapters.push({
+            id: ch.chapterId.toString(),
+            title: ch.subTitle || ch.name,
+            chapter: ch.name.replace('#', ''),
+            pages: 0,
+          });
+        });
+
+        setDetails({
+          id: params.id,
+          title: titleDetails.title.name,
+          coverImage: titleDetails.titleImageUrl || titleDetails.title.portraitImageUrl,
+          description: titleDetails.overview,
+          status: titleDetails.isSimulReleased ? 'Ongoing' : 'Completed',
+          chapters: allChapters.length,
+          genres: titleDetails.tags.map((tag: any) => tag.tag),
+          chapters_list: allChapters,
+          source: 'mangaplus',
+          author: titleDetails.title.author,
+          viewCount: titleDetails.numberOfViews,
+          rating: titleDetails.rating,
+        });
       } else if (params.source === 'mangadex') {
-        await loadMangaDexDetails();
+        const response = await fetch(
+          `https://api.mangadex.org/manga/${params.id}?includes[]=cover_art&includes[]=author&includes[]=artist`
+        );
+        const data = await response.json();
+
+        const chaptersResponse = await fetch(
+          `https://api.mangadex.org/manga/${params.id}/feed?translatedLanguage[]=en&order[chapter]=asc&limit=500`
+        );
+        const chaptersData = await chaptersResponse.json();
+
+        const chapters_list = chaptersData.data.map((ch: any) => ({
+          id: ch.id,
+          title: ch.attributes.title || `Chapter ${ch.attributes.chapter}`,
+          chapter: ch.attributes.chapter,
+          pages: ch.attributes.pages,
+        }));
+
+        setDetails({
+          id: params.id,
+          title: params.title,
+          coverImage: params.coverImage,
+          description: params.description,
+          status: params.status,
+          chapters: chaptersData.total,
+          genres:
+            data.data.attributes.tags?.slice(0, 5).map((tag: any) => tag.attributes.name.en) ||
+            [],
+          chapters_list,
+          source: 'mangadex',
+        });
       } else {
-        await loadAniListDetails();
+        const query = `
+          query ($id: Int) {
+            Media(id: $id, type: MANGA) {
+              id
+              title { romaji english native }
+              coverImage { large extraLarge }
+              description
+              status
+              chapters
+              genres
+            }
+          }
+        `;
+
+        const response = await fetch('https://graphql.anilist.co', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({
+            query,
+            variables: { id: parseInt(params.id) },
+          }),
+        });
+
+        const data = await response.json();
+        const manga = data.data.Media;
+
+        setDetails({
+          id: params.id,
+          title: manga.title.english || manga.title.romaji || manga.title.native,
+          coverImage: manga.coverImage.extraLarge || manga.coverImage.large,
+          description: manga.description,
+          status: manga.status,
+          chapters: manga.chapters,
+          genres: manga.genres || [],
+          chapters_list: undefined,
+          source: 'anilist',
+        });
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to load manga details');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load manga details');
     } finally {
       setLoading(false);
     }
-  };
+  }, [
+    params.id,
+    params.source,
+    params.title,
+    params.coverImage,
+    params.description,
+    params.status,
+    fetchTitleDetails,
+  ]);
+
+  useEffect(() => {
+    if (params.source === 'mangaplus' && !isInitialized) return;
+    void loadMangaDetails();
+  }, [params.source, isInitialized, loadMangaDetails]);
 
   const loadMoreChapters = () => {
     const totalChapters = details?.chapters_list?.length || 0;
@@ -123,159 +220,15 @@ export default function MangaDetailsScreen() {
     setDisplayedChapterCount(newCount);
   };
 
-  const loadMangaPlusDetails = async () => {
-    try {
-      if (!mangaPlus.isInitialized) {
-        let attempts = 0;
-        while (!mangaPlus.isInitialized && attempts < 10) {
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          attempts++;
-        }
-
-        if (!mangaPlus.isInitialized) {
-          throw new Error('MangaPlus initialization timeout. Please try again.');
-        }
-      }
-
-      const titleDetails = await mangaPlus.fetchTitleDetails(parseInt(params.id));
-
-      if (!titleDetails) {
-        throw new Error('Failed to fetch MangaPlus details');
-      }
-
-      const allChapters: Chapter[] = [];
-
-      (titleDetails.chapterListV2 || []).forEach((ch: any) => {
-        allChapters.push({
-          id: ch.chapterId.toString(),
-          title: ch.subTitle || ch.name,
-          chapter: ch.name.replace('#', ''),
-          pages: 0,
-        });
-      });
-
-      setDetails({
-        id: params.id,
-        title: titleDetails.title.name,
-        coverImage: titleDetails.titleImageUrl || titleDetails.title.portraitImageUrl,
-        description: titleDetails.overview,
-        status: titleDetails.isSimulReleased ? 'Ongoing' : 'Completed',
-        chapters: allChapters.length,
-        genres: titleDetails.tags.map((tag: any) => tag.tag),
-        chapters_list: allChapters,
-        source: 'mangaplus',
-        author: titleDetails.title.author,
-        viewCount: titleDetails.numberOfViews,
-        rating: titleDetails.rating,
-      });
-    } catch (err) {
-      throw new Error('Failed to load MangaPlus details. Please try again.');
-    }
-  };
-
-  const loadMangaDexDetails = async () => {
-    try {
-      const response = await fetch(
-        `https://api.mangadex.org/manga/${params.id}?includes[]=cover_art&includes[]=author&includes[]=artist`
-      );
-      const data = await response.json();
-
-      const chaptersResponse = await fetch(
-        `https://api.mangadex.org/manga/${params.id}/feed?translatedLanguage[]=en&order[chapter]=asc&limit=500`
-      );
-      const chaptersData = await chaptersResponse.json();
-
-      const chapters_list = chaptersData.data.map((ch: any) => ({
-        id: ch.id,
-        title: ch.attributes.title || `Chapter ${ch.attributes.chapter}`,
-        chapter: ch.attributes.chapter,
-        pages: ch.attributes.pages,
-      }));
-
-      setDetails({
-        id: params.id,
-        title: params.title,
-        coverImage: params.coverImage,
-        description: params.description,
-        status: params.status,
-        chapters: chaptersData.total,
-        genres:
-          data.data.attributes.tags?.slice(0, 5).map((tag: any) => tag.attributes.name.en) ||
-          [],
-        chapters_list,
-        source: 'mangadex',
-      });
-    } catch (err) {
-      throw new Error('Failed to load MangaDex details');
-    }
-  };
-
-  const loadAniListDetails = async () => {
-    try {
-      const query = `
-        query ($id: Int) {
-          Media(id: $id, type: MANGA) {
-            id
-            title {
-              romaji
-              english
-              native
-            }
-            coverImage {
-              large
-              extraLarge
-            }
-            bannerImage
-            description
-            status
-            chapters
-            genres
-            averageScore
-            siteUrl
-          }
-        }
-      `;
-
-      const response = await fetch('https://graphql.anilist.co', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify({
-          query,
-          variables: { id: parseInt(params.id) },
-        }),
-      });
-
-      const data = await response.json();
-      const manga = data.data.Media;
-
-      setDetails({
-        id: params.id,
-        title: manga.title.english || manga.title.romaji || manga.title.native,
-        coverImage: manga.coverImage.extraLarge || manga.coverImage.large,
-        description: manga.description,
-        status: manga.status,
-        chapters: manga.chapters,
-        genres: manga.genres || [],
-        chapters_list: undefined,
-        source: 'anilist',
-      });
-    } catch (err) {
-      throw new Error('Failed to load AniList details');
-    }
-  };
-
   const toggleFavorite = async () => {
     if (params.source !== 'mangaplus') return;
 
     try {
       if (isFavorite) {
-        await mangaPlus.removeFavorite(parseInt(params.id));
+        await removeFavorite(parseInt(params.id));
         setIsFavorite(false);
       } else {
-        await mangaPlus.addFavorite(parseInt(params.id));
+        await addFavorite(parseInt(params.id));
         setIsFavorite(true);
       }
     } catch { }
@@ -602,13 +555,13 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     width: '100%',
     height: '100%',
     backgroundColor: Colors.surface,
   },
   gradient: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   backButton: {
     position: 'absolute',

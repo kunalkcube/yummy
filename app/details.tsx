@@ -8,7 +8,7 @@ import { CastMember, Movie, useTMDB } from '@/hooks/useTMDB';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AlertCircle, ArrowLeft, Film, Play, Star, Tv, User } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -46,25 +46,27 @@ export default function DetailsScreen() {
   const [showAllCast, setShowAllCast] = useState(false);
   const [showAllRecommendations, setShowAllRecommendations] = useState(false);
 
-  useEffect(() => {
-    loadDetails();
-  }, [id, type]);
-
-  const loadDetails = async () => {
+  const loadDetails = useCallback(async () => {
     if (!id || !type) return;
     setLoading(true);
-    const data = await fetchDetails(Number(id), type);
-    setDetails(data);
+    try {
+      const data = await fetchDetails(Number(id), type);
+      setDetails(data);
 
-    const [castData, recData] = await Promise.all([
-      fetchCredits(Number(id), type),
-      fetchRecommendations(Number(id), type),
-    ]);
-    setCast(castData);
-    setRecommendations(recData);
+      const [castData, recData] = await Promise.all([
+        fetchCredits(Number(id), type),
+        fetchRecommendations(Number(id), type),
+      ]);
+      setCast(castData);
+      setRecommendations(recData);
+    } finally {
+      setLoading(false);
+    }
+  }, [id, type, fetchDetails, fetchCredits, fetchRecommendations]);
 
-    setLoading(false);
-  };
+  useEffect(() => {
+    void loadDetails();
+  }, [loadDetails]);
 
   const handleWatchNow = (season?: number, episode?: number) => {
     const params: Record<string, string> = {
@@ -447,7 +449,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   gradient: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   backButton: {
     position: 'absolute',

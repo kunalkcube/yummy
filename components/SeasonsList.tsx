@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   episodeImage: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     width: '100%',
     height: '100%',
   },

@@ -12,7 +12,7 @@ import {
   Minimize2,
   RotateCcw,
 } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -50,7 +50,7 @@ export default function MangaReaderScreen() {
   const { width: windowWidth, height: SCREEN_HEIGHT } = useWindowDimensions();
   const SCREEN_WIDTH = Math.min(windowWidth, CONTENT_MAX_WIDTH);
   const insets = useSafeAreaInsets();
-  const mangaPlus = useMangaPlus();
+  const { fetchChapterPages } = useMangaPlus();
   const [pages, setPages] = useState<Page[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -64,121 +64,69 @@ export default function MangaReaderScreen() {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
 
-  useEffect(() => {
-    loadChapterPages();
-  }, [params.chapterId]);
-
-  const loadChapterPages = async () => {
+  const loadChapterPages = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
       if (params.source === 'mangadex') {
-        await loadMangaDexPages();
+        const response = await fetch(
+          `https://api.mangadex.org/at-home/server/${params.chapterId}`
+        );
+        if (!response.ok) throw new Error('Failed to fetch chapter pages');
+        const data = await response.json();
+        if (!data.chapter?.data) throw new Error('No pages found for this chapter');
+
+        const { baseUrl, chapter } = data;
+        setPages(
+          chapter.data.map((filename: string, index: number) => ({
+            url: `${baseUrl}/data/${chapter.hash}/${filename}`,
+            index,
+          }))
+        );
       } else if (params.source === 'mangaplus') {
-        await loadMangaPlusPages();
+        const chapterId = parseInt(params.chapterId);
+        if (isNaN(chapterId)) throw new Error('Invalid chapter ID');
+
+        const pageUrls = await fetchChapterPages(chapterId);
+        if (!pageUrls?.length) {
+          throw new Error('No pages found for this chapter. It may not be available yet.');
+        }
+        setPages(pageUrls.map((url, index) => ({ url, index })));
       } else {
-        await loadAniListPages();
+        const response = await fetch(
+          `https://api.consumet.org/meta/anilist-manga/read?chapterId=${encodeURIComponent(params.chapterId)}`
+        );
+        if (!response.ok) throw new Error('Failed to fetch chapter from Consumet API');
+
+        const text = await response.text();
+        if (text.trim().startsWith('<')) {
+          throw new Error(
+            'Consumet API is currently unavailable. This manga may not be available for reading.'
+          );
+        }
+
+        const data = JSON.parse(text);
+        if (!Array.isArray(data) || data.length === 0) {
+          throw new Error('No pages found for this chapter');
+        }
+        setPages(
+          data.map((page: any, index: number) => ({
+            url: page.img || page.page || page.url || page,
+            index,
+          }))
+        );
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to load chapter pages');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load chapter pages');
     } finally {
       setLoading(false);
     }
-  };
+  }, [params.chapterId, params.source, fetchChapterPages]);
 
-  const loadMangaPlusPages = async () => {
-    try {
-      const chapterId = parseInt(params.chapterId);
-      if (isNaN(chapterId)) {
-        throw new Error('Invalid chapter ID');
-      }
-
-      const pageUrls = await mangaPlus.fetchChapterPages(chapterId);
-
-      if (!pageUrls || pageUrls.length === 0) {
-        throw new Error('No pages found for this chapter. It may not be available yet.');
-      }
-
-      setPages(
-        pageUrls.map((url, index) => ({
-          url,
-          index,
-        }))
-      );
-    } catch (err: any) {
-      throw new Error(err.message || 'Failed to load MangaPlus pages');
-    }
-  };
-
-  const loadMangaDexPages = async () => {
-    try {
-      const response = await fetch(
-        `https://api.mangadex.org/at-home/server/${params.chapterId}`
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch chapter pages');
-      }
-
-      const data = await response.json();
-
-      if (!data.chapter || !data.chapter.data) {
-        throw new Error('No pages found for this chapter');
-      }
-
-      const baseUrl = data.baseUrl;
-      const chapterHash = data.chapter.hash;
-      const pageFiles = data.chapter.data;
-
-      setPages(
-        pageFiles.map((filename: string, index: number) => ({
-          url: `${baseUrl}/data/${chapterHash}/${filename}`,
-          index,
-        }))
-      );
-    } catch (err) {
-      throw new Error('Failed to load MangaDex pages');
-    }
-  };
-
-  const loadAniListPages = async () => {
-    try {
-      const response = await fetch(
-        `https://api.consumet.org/meta/anilist-manga/read?chapterId=${encodeURIComponent(params.chapterId)}`
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch chapter from Consumet API');
-      }
-
-      const text = await response.text();
-
-      if (text.trim().startsWith('<')) {
-        throw new Error(
-          'Consumet API is currently unavailable. This manga may not be available for reading.'
-        );
-      }
-
-      const data = JSON.parse(text);
-
-      if (!Array.isArray(data) || data.length === 0) {
-        throw new Error('No pages found for this chapter');
-      }
-
-      setPages(
-        data.map((page: any, index: number) => ({
-          url: page.img || page.page || page.url || page,
-          index,
-        }))
-      );
-    } catch (err: any) {
-      throw new Error(
-        err.message ||
-          'Failed to load AniList pages. This manga may not be available for reading.'
-      );
-    }
-  };
+  useEffect(() => {
+    void loadChapterPages();
+  }, [loadChapterPages]);
 
   const resetZoom = () => {
     scale.value = withSpring(1);
@@ -570,7 +518,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   imageLoadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.35)',
