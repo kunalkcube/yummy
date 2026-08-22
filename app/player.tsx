@@ -125,7 +125,7 @@ export default function PlayerScreen() {
           </Text>
           <TouchableOpacity
             style={styles.settingsButton}
-            onPress={() => router.replace('/(tabs)/settings')}
+            onPress={() => router.push('/settings')}
             activeOpacity={0.85}
           >
             <Text style={styles.settingsButtonText}>Open Settings</Text>

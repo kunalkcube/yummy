@@ -13,7 +13,6 @@ export default function TabLayout() {
       <Tabs.Screen name="search" options={{ title: 'Search' }} />
       <Tabs.Screen name="manga" options={{ title: 'Manga' }} />
       <Tabs.Screen name="iptv" options={{ title: 'IPTV' }} />
-      <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
     </Tabs>
   );
 }

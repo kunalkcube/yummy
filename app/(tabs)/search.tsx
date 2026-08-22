@@ -28,6 +28,10 @@ export default function SearchScreen() {
   const [results, setResults] = useState<Movie[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
+  const openSettings = () => {
+    router.push('/settings');
+  };
+
   const handleSearch = async (text: string) => {
     setQuery(text);
     if (text.length > 2) {
@@ -112,6 +116,13 @@ export default function SearchScreen() {
           <Text style={styles.emptyText}>
             Set your TMDB API key in Settings to search
           </Text>
+          <TouchableOpacity
+            style={styles.emptyCta}
+            onPress={openSettings}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.emptyCtaText}>Open Settings</Text>
+          </TouchableOpacity>
         </View>
       </ScreenContainer>
     );
@@ -335,5 +346,18 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.GeistMono.Regular,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  emptyCta: {
+    marginTop: 20,
+    backgroundColor: '#fff',
+    paddingVertical: 13,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  emptyCtaText: {
+    color: '#000',
+    fontSize: 14,
+    fontFamily: Fonts.GeistMono.Bold,
+    letterSpacing: 0.3,
   },
 });

@@ -44,6 +44,7 @@ export default function MangaScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedSource, setSelectedSource] = useState<MangaSource>('mangadex');
+  const [hasSearched, setHasSearched] = useState(false);
 
   const searchMangaDex = async (query: string) => {
     try {
@@ -144,30 +145,40 @@ export default function MangaScreen() {
     }
   };
 
-  const handleSearch = async (text: string) => {
+  const onChangeQuery = (text: string) => {
     setSearchQuery(text);
-    if (text.length > 2) {
-      setLoading(true);
-      setError(null);
-      try {
-        let searchResults: MangaResult[] = [];
+    setHasSearched(false);
+    setResults([]);
+    setError(null);
+    setLoading(false);
+  };
 
-        if (selectedSource === 'mangadex') {
-          searchResults = await searchMangaDex(text);
-        } else {
-          searchResults = await searchAniList(text);
-        }
-
-        setResults(searchResults);
-      } catch (err: any) {
-        setError(err.message || `Failed to search ${selectedSource}. Please try again.`);
-        setResults([]);
-      } finally {
-        setLoading(false);
-      }
-    } else {
+  const runSearch = async () => {
+    const text = searchQuery.trim();
+    if (text.length < 3) {
+      setHasSearched(false);
       setResults([]);
       setError(null);
+      return;
+    }
+
+    setHasSearched(true);
+    setLoading(true);
+    setError(null);
+    try {
+      let searchResults: MangaResult[] = [];
+
+      if (selectedSource === 'mangadex') {
+        searchResults = await searchMangaDex(text);
+      } else {
+        searchResults = await searchAniList(text);
+      }
+
+      setResults(searchResults);
+    } catch (err: any) {
+      setError(err.message || `Failed to search ${selectedSource}. Please try again.`);
+      setResults([]);
+    } finally {
       setLoading(false);
     }
   };
@@ -176,6 +187,8 @@ export default function MangaScreen() {
     setSearchQuery('');
     setResults([]);
     setError(null);
+    setHasSearched(false);
+    setLoading(false);
   };
 
   const openManga = (manga: MangaResult) => {
@@ -262,6 +275,7 @@ export default function MangaScreen() {
                   setResults([]);
                   setSearchQuery('');
                   setError(null);
+                  setHasSearched(false);
                 }}
                 activeOpacity={0.85}
               >
@@ -282,10 +296,12 @@ export default function MangaScreen() {
             placeholder="Search manga..."
             placeholderTextColor={Colors.textSecondary}
             value={searchQuery}
-            onChangeText={handleSearch}
+            onChangeText={onChangeQuery}
+            onSubmitEditing={() => void runSearch()}
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="search"
+            blurOnSubmit
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity
@@ -316,14 +332,14 @@ export default function MangaScreen() {
             <ActivityIndicator size="large" color={Colors.accent} />
             <Text style={styles.loadingText}>Searching...</Text>
           </View>
-        ) : error && searchQuery.length > 2 ? (
+        ) : error && hasSearched ? (
           <View style={styles.emptyContainer}>
             <AlertCircle size={40} color={Colors.textSecondary} />
             <Text style={styles.emptyTitle}>Something went wrong</Text>
             <Text style={styles.emptyText}>{error}</Text>
             <TouchableOpacity
               style={styles.retryButton}
-              onPress={() => handleSearch(searchQuery)}
+              onPress={() => void runSearch()}
               activeOpacity={0.85}
             >
               <Text style={styles.retryButtonText}>Try Again</Text>
@@ -341,12 +357,20 @@ export default function MangaScreen() {
                   MangaDex for chapters, AniList for discovery
                 </Text>
               </>
-            ) : searchQuery.length <= 2 ? (
+            ) : searchQuery.trim().length < 3 ? (
               <>
                 <BookOpen size={40} color={Colors.textSecondary} />
                 <Text style={styles.emptyTitle}>Keep typing</Text>
                 <Text style={styles.emptyText}>
-                  Enter at least 3 characters to search
+                  Enter at least 3 characters, then press Search
+                </Text>
+              </>
+            ) : !hasSearched ? (
+              <>
+                <Search size={40} color={Colors.textSecondary} />
+                <Text style={styles.emptyTitle}>Ready to search</Text>
+                <Text style={styles.emptyText}>
+                  Press Search on the keyboard to find manga
                 </Text>
               </>
             ) : (

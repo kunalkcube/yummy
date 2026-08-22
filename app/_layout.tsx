@@ -60,6 +60,9 @@ export default function RootLayout() {
             <Stack.Screen name="person" options={{ headerShown: false }} />
             <Stack.Screen name="manga-details" options={{ headerShown: false }} />
             <Stack.Screen name="manga-reader" options={{ headerShown: false }} />
+            <Stack.Screen name="more" options={{ headerShown: false }} />
+            <Stack.Screen name="my-list" options={{ headerShown: false }} />
+            <Stack.Screen name="settings" options={{ headerShown: false }} />
           </Stack>
           <StatusBar style="light" />
           {updateInfo && (

@@ -15,20 +15,22 @@ The app is an Expo Router application with a dark, Netflix-inspired visual syste
 
 ```mermaid
 flowchart TD
-    Root[app/_layout.tsx] --> Settings[SettingsProvider]
+    Root[app/_layout.tsx] --> SettingsCtx[SettingsProvider]
     Root --> Alerts[AlertProvider]
     Root --> Theme[Dark navigation theme]
     Root --> Tabs[Tab navigator]
     Root --> Details[TMDB detail routes]
     Root --> Player[Third-party streaming player]
     Root --> Manga[Manga detail and reader routes]
+    Root --> SettingsScreen[Settings stack screen]
+    Root --> MoreScreen[More hub]
+    Root --> MyListScreen[My List]
     Root --> Updates[GitHub release update alert]
 
     Tabs --> Home[Home]
     Tabs --> Search[Search]
     Tabs --> MangaTab[Manga]
     Tabs --> IptvTab[IPTV]
-    Tabs --> SettingsTab[Settings]
 
     Home --> TMDB[TMDB API]
     Search --> TMDB
@@ -38,7 +40,12 @@ flowchart TD
     Manga --> MangaAPIs
     IptvTab --> IptvOrg[IPTV-org / saved M3U playlists]
     IptvTab --> IptvPlayer[Direct Plyr player]
-    SettingsTab --> Alerts
+    SettingsScreen --> Alerts
+    Home -.->|More icon| MoreScreen
+    Search -.->|empty CTA| SettingsScreen
+    MoreScreen --> MyListScreen
+    MoreScreen --> SettingsScreen
+    Player -.->|Open Settings| SettingsScreen
 ```
 
 ## Route Inventory
@@ -46,11 +53,13 @@ flowchart TD
 | Route | Role | Important parameters / dependencies |
 | --- | --- | --- |
 | `/(tabs)` | Bottom-tab shell | Defined by `app/(tabs)/_layout.tsx` |
-| `/(tabs)/index` | Home discovery | TMDB credential; optional TMDB provider filter |
+| `/(tabs)/index` | Home discovery | TMDB credential; optional TMDB provider filter; More (⋯) icon |
 | `/(tabs)/search` | TMDB multi-search | TMDB credential; search starts at 3 characters |
 | `/(tabs)/manga` | Manga source selector/search | MangaDex or AniList network access |
 | `/(tabs)/iptv` | IPTV playlist, group, and channel browser | IPTV-org plus saved M3U / custom channels |
-| `/(tabs)/settings` | Stream provider, TMDB, IPTV playlists/channels | `SettingsContext`; AsyncStorage; `AppAlert` |
+| `/more` | Hub for My List, Settings, future links | Stack screen; opened via More (⋯) on Home |
+| `/my-list` | Full watchlist | `LibraryContext` watchlist |
+| `/settings` | Stream provider, TMDB, IPTV playlists/channels | Stack screen; via More or direct CTA |
 | `/details` | Movie/TV metadata, cast, seasons, recommendations | `id`, `type` (`movie`/`tv`) |
 | `/person` | TMDB person profile and credits | `id` |
 | `/iptv-player` | Direct Plyr IPTV playback | `channelName`, `streamUrl` |
@@ -83,7 +92,7 @@ Use `useSettings()` instead of direct AsyncStorage access in product features. S
 
 ### Library (watchlist / continue watching)
 
-`contexts/LibraryContext.tsx` stores TMDB titles in AsyncStorage (`@library_watchlist`, `@library_continue_watching`). Caps: 200 watchlist / 20 continue. Details bookmark toggles watchlist; starting playback records continue progress (TV keeps season/episode). Home: Continue Watching is a landscape resume row under the hero (tap = play, X = remove, long-press = details); My List is a portrait row below Coming Soon. Prefer AsyncStorage over SQLite for this scale.
+`contexts/LibraryContext.tsx` stores TMDB titles in AsyncStorage (`@library_watchlist`, `@library_continue_watching`). Caps: 200 watchlist / 20 continue. Details bookmark toggles watchlist; starting playback records continue progress (TV keeps season/episode). Home: Continue Watching under the hero; hero Play starts stream. Full My List lives at `/my-list` via `/more` (poster grid). Provider chips are TMDB “browse by service” filters — distinct from Settings embed stream providers. Prefer AsyncStorage over SQLite for this scale.
 
 ## Data and External Contracts
 
@@ -120,6 +129,7 @@ Source selection lives in `app/(tabs)/manga.tsx`. `manga-details.tsx` fetches so
 
 - Design tokens: `constants/colors.ts`, `constants/fonts.ts` (four Geist Mono weights only).
 - Desktop shell: `components/layout/ScreenContainer.tsx` centers content at `CONTENT_MAX_WIDTH` (896) when width ≥ 768 (`useIsDesktop`). Below that, mobile layout matches pre-desktop (no max-width column, uncapped heroes/cards, FlatList rows, no chevrons). `MovieCard` clamps 110–170 only on desktop. Tab chrome and `HorizontalScrollRow` chevrons follow the same breakpoint. Players stay full-bleed; web/Tauri uses `iframe`.
+- Bottom tabs: Home, Search, Manga, IPTV (4). More hub at `/more` (My List, Settings); Settings at `/settings`.
 - Shared chrome language: quiet uppercase labels, radius 8, white primary buttons, accent-border selection, Lucide `Star` for ratings, safe-area aware headers, translucent player chrome.
 - `MovieRow` / `MovieCard` — Home (and similar) horizontal lists → `/details`.
 - `ProviderChips` — TMDB watch-provider filter on Home.

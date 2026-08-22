@@ -38,7 +38,7 @@ Personal media client for movies, TV, manga, and IPTV — built with React Nativ
 
 ### App
 - Custom tab bar and quiet dark chrome (Geist Mono)
-- Settings for stream provider, TMDB credentials, and IPTV sources
+- More hub (⋯) for My List and Settings — room to grow
 - GitHub Releases update alert
 - Privacy-first: AsyncStorage only — no Yummy server
 
@@ -76,7 +76,7 @@ npm run android
 npm run ios
 ```
 
-Then open **Settings**, accept the stream notice if you use embeds, paste your TMDB API key or bearer token, and pick a stream provider.
+Then open **More** (⋯ on Home) → **Settings**, accept the stream notice if you use embeds, paste your TMDB API key or bearer token, and pick a stream provider.
 
 ## IPTV
 

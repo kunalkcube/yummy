@@ -114,7 +114,7 @@ export default function DetailsScreen() {
       streamUrl,
       acceptStreamDisclaimer,
       openSettings: () => {
-        router.push('/(tabs)/settings');
+        router.push('/settings');
       },
       onReady: () => {
         if (details && Number.isFinite(numericId)) {

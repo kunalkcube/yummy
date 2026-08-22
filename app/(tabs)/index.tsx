@@ -6,7 +6,6 @@ import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
 import {
   ContinueWatchingItem,
-  toMovieFromLibrary,
 } from '@/constants/library';
 import { STREAMING_PROVIDERS } from '@/constants/providers';
 import { useLibrary } from '@/contexts/LibraryContext';
@@ -16,8 +15,8 @@ import { Movie, useTMDB } from '@/hooks/useTMDB';
 import { ensureStreamPlaybackReady } from '@/utils/streamPlaybackGate';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Bookmark, Film, Play, Sparkles, Star, TrendingUp, Tv } from 'lucide-react-native';
-import { useEffect, useMemo, useState } from 'react';
+import { EllipsisVertical, Film, Play, Sparkles, Star, TrendingUp, Tv } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -39,7 +38,7 @@ export default function HomeScreen() {
     fetchTopRated,
     fetchUpcoming,
   } = useTMDB();
-  const { continueWatching, watchlist, removeContinueWatching, recordContinueWatching } =
+  const { continueWatching, removeContinueWatching, recordContinueWatching } =
     useLibrary();
   const {
     streamDisclaimerAccepted,
@@ -61,7 +60,13 @@ export default function HomeScreen() {
   const [featuredMovie, setFeaturedMovie] = useState<Movie | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const watchlistMovies = useMemo(() => watchlist.map(toMovieFromLibrary), [watchlist]);
+  const openMore = () => {
+    router.push('/more');
+  };
+
+  const openSettings = () => {
+    router.push('/settings');
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -130,15 +135,6 @@ export default function HomeScreen() {
     return provider?.name || 'Provider';
   };
 
-  const handleFeaturedPress = () => {
-    if (!featuredMovie) return;
-    const type = featuredMovie.media_type || (featuredMovie.title ? 'movie' : 'tv');
-    router.push({
-      pathname: '/details',
-      params: { id: featuredMovie.id, type },
-    });
-  };
-
   const handleResume = (item: ContinueWatchingItem) => {
     const params: Record<string, string> = {
       id: String(item.id),
@@ -155,9 +151,7 @@ export default function HomeScreen() {
       streamProvider,
       streamUrl,
       acceptStreamDisclaimer,
-      openSettings: () => {
-        router.push('/(tabs)/settings');
-      },
+      openSettings,
       onReady: () => {
         void recordContinueWatching({
           id: item.id,
@@ -183,6 +177,45 @@ export default function HomeScreen() {
     });
   };
 
+  const handleFeaturedPlay = () => {
+    if (!featuredMovie) return;
+    const type = (featuredMovie.media_type ||
+      (featuredMovie.title ? 'movie' : 'tv')) as 'movie' | 'tv';
+    const title = featuredMovie.title || featuredMovie.name || 'Unknown';
+    const params: Record<string, string> = {
+      id: String(featuredMovie.id),
+      type,
+      title,
+    };
+    if (type === 'tv') {
+      params.season = '1';
+      params.episode = '1';
+    }
+
+    ensureStreamPlaybackReady({
+      streamDisclaimerAccepted,
+      streamProvider,
+      streamUrl,
+      acceptStreamDisclaimer,
+      openSettings,
+      onReady: () => {
+        void recordContinueWatching({
+          id: featuredMovie.id,
+          type,
+          title,
+          posterPath: featuredMovie.poster_path,
+          backdropPath: featuredMovie.backdrop_path,
+          season: type === 'tv' ? 1 : undefined,
+          episode: type === 'tv' ? 1 : undefined,
+        });
+        router.push({
+          pathname: '/player',
+          params,
+        });
+      },
+    });
+  };
+
   const heroYear = (featuredMovie?.release_date || featuredMovie?.first_air_date)?.substring(0, 4);
   const heroRating = featuredMovie?.vote_average
     ? featuredMovie.vote_average.toFixed(1)
@@ -192,9 +225,30 @@ export default function HomeScreen() {
   if (!tmdbApiKey) {
     return (
       <ScreenContainer style={styles.container}>
+        <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
+          <Text style={styles.topBarWordmark}>YUMMY</Text>
+          <TouchableOpacity
+            onPress={openMore}
+            style={styles.moreButton}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Open more"
+          >
+            <EllipsisVertical size={22} color={Colors.text} />
+          </TouchableOpacity>
+        </View>
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyLabel}>YUMMY</Text>
-          <Text style={styles.emptyText}>Please set your TMDB API key in Settings</Text>
+          <Text style={styles.emptyText}>
+            Add your TMDB API key in Settings to browse movies and TV
+          </Text>
+          <TouchableOpacity
+            style={styles.emptyCta}
+            onPress={openSettings}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.emptyCtaText}>Open Settings</Text>
+          </TouchableOpacity>
         </View>
       </ScreenContainer>
     );
@@ -214,12 +268,23 @@ export default function HomeScreen() {
   return (
     <ScreenContainer style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {!featuredMovie && (
+          <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
+            <Text style={styles.topBarWordmark}>YUMMY</Text>
+            <TouchableOpacity
+              onPress={openMore}
+              style={styles.moreButton}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Open more"
+            >
+              <EllipsisVertical size={22} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+        )}
+
         {featuredMovie && (
-          <TouchableOpacity
-            style={[styles.heroSection, { height: heroHeight }]}
-            activeOpacity={0.95}
-            onPress={handleFeaturedPress}
-          >
+          <View style={[styles.heroSection, { height: heroHeight }]}>
             <Image
               source={{
                 uri: featuredMovie.backdrop_path
@@ -234,7 +299,18 @@ export default function HomeScreen() {
               style={styles.heroGradient}
             />
 
-            <Text style={[styles.wordmark, { top: insets.top + 12 }]}>YUMMY</Text>
+            <View style={[styles.heroTopBar, { top: insets.top + 12 }]}>
+              <Text style={styles.wordmark}>YUMMY</Text>
+              <TouchableOpacity
+                onPress={openMore}
+                style={styles.moreButton}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="Open more"
+              >
+                <EllipsisVertical size={22} color={Colors.text} />
+              </TouchableOpacity>
+            </View>
 
             <Animated.View
               entering={FadeInDown.duration(250)}
@@ -261,16 +337,18 @@ export default function HomeScreen() {
               <Text style={styles.heroTitle} numberOfLines={2}>
                 {featuredMovie.title || featuredMovie.name}
               </Text>
-              <TouchableOpacity
-                style={styles.playButton}
-                onPress={handleFeaturedPress}
-                activeOpacity={0.85}
-              >
-                <Play size={18} color="#000" fill="#000" />
-                <Text style={styles.playButtonText}>Watch Now</Text>
-              </TouchableOpacity>
+              <View style={styles.heroActions}>
+                <TouchableOpacity
+                  style={styles.playButton}
+                  onPress={handleFeaturedPlay}
+                  activeOpacity={0.85}
+                >
+                  <Play size={18} color="#000" fill="#000" />
+                  <Text style={styles.playButtonText}>Play</Text>
+                </TouchableOpacity>
+              </View>
             </Animated.View>
-          </TouchableOpacity>
+          </View>
         )}
 
         {continueWatching.length > 0 && (
@@ -284,7 +362,7 @@ export default function HomeScreen() {
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionLabel}>
-            {selectedProvider ? getProviderName() : 'Explore'}
+            {selectedProvider ? getProviderName() : 'Browse by service'}
           </Text>
         </View>
 
@@ -330,10 +408,6 @@ export default function HomeScreen() {
           />
         )}
 
-        {watchlistMovies.length > 0 && (
-          <MovieRow title="My List" movies={watchlistMovies} icon={Bookmark} />
-        )}
-
         {trending.length === 0 &&
           popularMovies.length === 0 &&
           popularTV.length === 0 &&
@@ -373,9 +447,28 @@ const styles = StyleSheet.create({
   heroGradient: {
     ...StyleSheet.absoluteFill,
   },
-  wordmark: {
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+  },
+  topBarWordmark: {
+    fontSize: 15,
+    fontFamily: Fonts.GeistMono.Bold,
+    color: Colors.text,
+    letterSpacing: 4,
+  },
+  heroTopBar: {
     position: 'absolute',
     left: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  wordmark: {
     fontSize: 15,
     fontFamily: Fonts.GeistMono.Bold,
     color: Colors.text,
@@ -383,6 +476,14 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.6)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
+  },
+  moreButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
   heroContent: {
     position: 'absolute',
@@ -424,6 +525,12 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 8,
   },
+  heroActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
   playButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -432,7 +539,6 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     paddingHorizontal: 26,
     borderRadius: 8,
-    alignSelf: 'flex-start',
     gap: 8,
   },
   playButtonText: {
@@ -474,6 +580,19 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.GeistMono.Regular,
     textAlign: 'center',
     lineHeight: 22,
+  },
+  emptyCta: {
+    marginTop: 20,
+    backgroundColor: '#fff',
+    paddingVertical: 13,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  emptyCtaText: {
+    color: '#000',
+    fontSize: 14,
+    fontFamily: Fonts.GeistMono.Bold,
+    letterSpacing: 0.3,
   },
   loadingText: {
     color: Colors.textSecondary,

@@ -4,7 +4,7 @@ import { Fonts } from '@/constants/fonts';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import * as Haptics from 'expo-haptics';
-import { BookOpen, Home, Radio, Search, Settings } from 'lucide-react-native';
+import { BookOpen, Home, Radio, Search } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -16,7 +16,6 @@ const TAB_META: Record<
   search: { label: 'Search', Icon: Search },
   manga: { label: 'Manga', Icon: BookOpen },
   iptv: { label: 'IPTV', Icon: Radio },
-  settings: { label: 'Settings', Icon: Settings },
 };
 
 export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
@@ -146,7 +145,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.accent,
   },
   label: {
-    fontSize: 9,
+    fontSize: 10,
     fontFamily: Fonts.GeistMono.Medium,
     letterSpacing: 1.1,
     textTransform: 'uppercase',

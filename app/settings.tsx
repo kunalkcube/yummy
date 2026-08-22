@@ -15,7 +15,8 @@ import {
 import { useSettings } from '@/contexts/SettingsContext';
 import axios from 'axios';
 import Constants from 'expo-constants';
-import { Check, Trash2 } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { ArrowLeft, Check, Trash2 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import {
   Linking,
@@ -53,6 +54,7 @@ export default function SettingsScreen() {
     addIptvChannel,
     removeIptvChannel,
   } = useSettings();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const [localStreamUrl, setLocalStreamUrl] = useState(streamUrl);
   const [localApiKey, setLocalApiKey] = useState(tmdbApiKey);
@@ -216,7 +218,24 @@ export default function SettingsScreen() {
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.headerLabel}>Settings</Text>
+      <View style={styles.headerRow}>
+        <TouchableOpacity
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(tabs)');
+            }
+          }}
+          style={styles.backButton}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <ArrowLeft size={22} color={Colors.text} />
+        </TouchableOpacity>
+        <Text style={styles.headerLabel}>Settings</Text>
+      </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Stream Provider</Text>
@@ -516,13 +535,25 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 16,
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 24,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: -8,
+  },
   headerLabel: {
     fontSize: 13,
     fontFamily: Fonts.GeistMono.SemiBold,
     color: Colors.textSecondary,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
-    marginBottom: 24,
   },
   section: {
     marginBottom: 32,
