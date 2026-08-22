@@ -1,7 +1,7 @@
 {
   "name": "yummy",
   "main": "expo-router/entry",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Personal movie/TV show streaming app with TMDB integration",
   "license": "MIT",
   "scripts": {

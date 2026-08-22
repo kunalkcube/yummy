@@ -2,7 +2,7 @@
 
 ## Snapshot
 
-**Yummy** is a personal media client (`v2.1.0`) that combines:
+**Yummy** is a personal media client (`v2.2.0`) that combines:
 
 1. TMDB discovery for movies, TV shows, people, cast, and recommendations.
 2. Configurable third-party streaming-provider embeds (`app/player.tsx`: WebView on native, `<iframe>` on web/Tauri).

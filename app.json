@@ -2,7 +2,7 @@
   "expo": {
     "name": "Yummy",
     "slug": "yummy",
-    "version": "2.1.0",
+    "version": "2.2.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "yummy",
@@ -19,7 +19,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.kunalkongkan.yummy",
-      "versionCode": 2
+      "versionCode": 3
     },
     "web": {
       "output": "static",

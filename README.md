@@ -2,7 +2,7 @@
 
 Personal media client for movies, TV, manga, and IPTV — built with React Native and Expo.
 
-**v2.1.0** · dark Netflix-inspired UI · no Yummy backend (everything stays on-device)
+**v2.2.0** · dark Netflix-inspired UI · no Yummy backend (everything stays on-device)
 
 <p align="center">
   <img src="docs/home_screen.jpg" alt="Home Screen" width="200" />
