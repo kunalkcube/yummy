@@ -5,14 +5,21 @@ Personal media client for movies, TV, manga, and IPTV — built with React Nativ
 **v2.2.0** · dark Netflix-inspired UI · no Yummy backend (everything stays on-device)
 
 <p align="center">
-  <img src="docs/home_screen.jpg" alt="Home Screen" width="200" />
-  <img src="docs/search_screen.jpg" alt="Search Screen" width="200" />
-  <img src="docs/manga_screen.jpg" alt="Manga Screen" width="200" />
+  <img src="docs/home.png" alt="Home" width="180" />
+  <img src="docs/home-with-continue.png" alt="Home with Continue Watching" width="180" />
+  <img src="docs/search.png" alt="Search" width="180" />
+  <img src="docs/detail.png" alt="Details" width="180" />
 </p>
 
 <p align="center">
-  <img src="docs/detail_screen.jpg" alt="Detail Screen" width="200" />
-  <img src="docs/manga_details_screen.jpg" alt="Manga Details" width="200" />
+  <img src="docs/watchlist.png" alt="My List" width="180" />
+  <img src="docs/watch-history.png" alt="Watch History" width="180" />
+  <img src="docs/manga.png" alt="Manga" width="180" />
+  <img src="docs/manga-detail.png" alt="Manga Details" width="180" />
+</p>
+
+<p align="center">
+  <img src="docs/iptv.png" alt="IPTV" width="180" />
 </p>
 
 ## Features
