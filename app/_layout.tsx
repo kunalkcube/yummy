@@ -1,6 +1,7 @@
 import { AlertProvider } from '@/components/AppAlert';
 import UpdateAlert from '@/components/UpdateAlert';
 import { WebInputReset } from '@/components/WebInputReset';
+import { LibraryProvider } from '@/contexts/LibraryContext';
 import { SettingsProvider } from '@/contexts/SettingsContext';
 import { useVersionCheck } from '@/hooks/useVersionCheck';
 import { DarkTheme, ThemeProvider } from 'expo-router/react-navigation';
@@ -47,6 +48,7 @@ export default function RootLayout() {
 
   return (
     <SettingsProvider>
+      <LibraryProvider>
       <AlertProvider>
         <ThemeProvider value={DarkTheme}>
           <WebInputReset />
@@ -72,6 +74,7 @@ export default function RootLayout() {
           )}
         </ThemeProvider>
       </AlertProvider>
+      </LibraryProvider>
     </SettingsProvider>
   );
 }

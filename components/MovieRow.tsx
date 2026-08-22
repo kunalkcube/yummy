@@ -13,9 +13,10 @@ interface MovieRowProps {
   movies: Movie[];
   icon?: LucideIcon;
   mediaType?: 'movie' | 'tv';
+  getCaption?: (movie: Movie) => string | undefined;
 }
 
-export const MovieRow = ({ title, movies, icon: Icon, mediaType }: MovieRowProps) => {
+export const MovieRow = ({ title, movies, icon: Icon, mediaType, getCaption }: MovieRowProps) => {
   const router = useRouter();
   const isDesktop = useIsDesktop();
 
@@ -36,7 +37,12 @@ export const MovieRow = ({ title, movies, icon: Icon, mediaType }: MovieRowProps
       {isDesktop ? (
         <HorizontalScrollRow contentContainerStyle={styles.list}>
           {movies.map((item) => (
-            <MovieCard key={item.id} movie={item} onPress={() => handlePress(item)} />
+            <MovieCard
+              key={`${item.media_type || mediaType || 'unknown'}-${item.id}`}
+              movie={item}
+              caption={getCaption?.(item)}
+              onPress={() => handlePress(item)}
+            />
           ))}
         </HorizontalScrollRow>
       ) : (
@@ -44,9 +50,13 @@ export const MovieRow = ({ title, movies, icon: Icon, mediaType }: MovieRowProps
           data={movies}
           horizontal
           showsHorizontalScrollIndicator={false}
-          keyExtractor={(item) => item.id.toString()}
+          keyExtractor={(item) => `${item.media_type || mediaType || 'unknown'}-${item.id}`}
           renderItem={({ item }) => (
-            <MovieCard movie={item} onPress={() => handlePress(item)} />
+            <MovieCard
+              movie={item}
+              caption={getCaption?.(item)}
+              onPress={() => handlePress(item)}
+            />
           )}
           contentContainerStyle={styles.list}
         />

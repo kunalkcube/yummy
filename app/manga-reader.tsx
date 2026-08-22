@@ -1,7 +1,6 @@
 import { CONTENT_MAX_WIDTH, ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
-import { useMangaPlus } from '@/hooks/useMangaPlus';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   AlertCircle,
@@ -43,14 +42,13 @@ export default function MangaReaderScreen() {
     chapterTitle: string;
     mangaId: string;
     mangaTitle: string;
-    source: 'mangadex' | 'anilist' | 'mangaplus';
+    source: 'mangadex' | 'anilist';
   }>();
 
   const router = useRouter();
   const { width: windowWidth, height: SCREEN_HEIGHT } = useWindowDimensions();
   const SCREEN_WIDTH = Math.min(windowWidth, CONTENT_MAX_WIDTH);
   const insets = useSafeAreaInsets();
-  const { fetchChapterPages } = useMangaPlus();
   const [pages, setPages] = useState<Page[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -84,15 +82,6 @@ export default function MangaReaderScreen() {
             index,
           }))
         );
-      } else if (params.source === 'mangaplus') {
-        const chapterId = parseInt(params.chapterId);
-        if (isNaN(chapterId)) throw new Error('Invalid chapter ID');
-
-        const pageUrls = await fetchChapterPages(chapterId);
-        if (!pageUrls?.length) {
-          throw new Error('No pages found for this chapter. It may not be available yet.');
-        }
-        setPages(pageUrls.map((url, index) => ({ url, index })));
       } else {
         const response = await fetch(
           `https://api.consumet.org/meta/anilist-manga/read?chapterId=${encodeURIComponent(params.chapterId)}`
@@ -122,7 +111,7 @@ export default function MangaReaderScreen() {
     } finally {
       setLoading(false);
     }
-  }, [params.chapterId, params.source, fetchChapterPages]);
+  }, [params.chapterId, params.source]);
 
   useEffect(() => {
     void loadChapterPages();

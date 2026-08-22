@@ -9,9 +9,10 @@ import { Image, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } 
 interface MovieCardProps {
   movie: Movie;
   onPress: () => void;
+  caption?: string;
 }
 
-export const MovieCard = ({ movie, onPress }: MovieCardProps) => {
+export const MovieCard = ({ movie, onPress, caption }: MovieCardProps) => {
   const { width } = useWindowDimensions();
   const isDesktop = useIsDesktop();
   const cardWidth = isDesktop
@@ -50,7 +51,11 @@ export const MovieCard = ({ movie, onPress }: MovieCardProps) => {
         <Text style={styles.title} numberOfLines={2}>
           {movie.title || movie.name}
         </Text>
-        {year && <Text style={styles.year}>{year}</Text>}
+        {caption ? (
+          <Text style={styles.caption}>{caption}</Text>
+        ) : year ? (
+          <Text style={styles.year}>{year}</Text>
+        ) : null}
       </View>
     </TouchableOpacity>
   );
@@ -108,6 +113,11 @@ const styles = StyleSheet.create({
     lineHeight: 15,
   },
   year: {
+    color: 'rgba(255, 255, 255, 0.55)',
+    fontSize: 10,
+    fontFamily: Fonts.GeistMono.Regular,
+  },
+  caption: {
     color: 'rgba(255, 255, 255, 0.55)',
     fontSize: 10,
     fontFamily: Fonts.GeistMono.Regular,

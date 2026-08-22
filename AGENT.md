@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Yummy is a personal React Native media app built with Expo. It browses TMDB movies and TV shows, plays public direct IPTV streams, and searches/reads manga from MangaPlus, MangaDex, and AniList.
+Yummy is a personal React Native media app built with Expo. It browses TMDB movies and TV shows, plays public direct IPTV streams, and searches/reads manga from MangaDex and AniList.
 
 ## Stack
 
@@ -10,7 +10,7 @@ Yummy is a personal React Native media app built with Expo. It browses TMDB movi
 - Expo Router 57 for file-based navigation
 - React Navigation tabs/stack (via Expo Router), React Native WebView, Gesture Handler/Reanimated
 - Axios and `fetch` for external APIs
-- AsyncStorage for device-local settings and MangaPlus device credentials
+- AsyncStorage for device-local settings
 - ESLint via `eslint-config-expo`
 
 ## Commands
@@ -42,12 +42,13 @@ Desktop (Win / Linux / macOS) uses Tauri 2 wrapping the Expo web export. Require
 | `app/iptv-player.tsx` | Direct IPTV stream playback through Plyr |
 | `app/manga-details.tsx`, `app/manga-reader.tsx` | Manga metadata, chapters, and gesture-enabled reader |
 | `components/` | Shared media UI, `AppAlert`, and update prompt |
-| `contexts/SettingsContext.tsx` | Persisted TMDB, IPTV playlist, favorite, and recent-channel state |
+| `contexts/SettingsContext.tsx` | Persisted TMDB, stream disclaimer/provider, IPTV playlist, favorite, and recent-channel state |
+| `contexts/LibraryContext.tsx` | Watchlist + continue watching (AsyncStorage) |
 | `hooks/useIptv.ts` | Validated M3U parsing and playlist loading |
 | `hooks/useTMDB.ts` | TMDB API client and shared media types |
-| `hooks/useMangaPlus.ts` | MangaPlus device lifecycle and API client |
 | `hooks/useVersionCheck.ts` | GitHub Release update check |
 | `constants/` | Colors, fonts, stream providers, TMDB provider filters, IPTV types |
+| `utils/streamPlaybackGate.ts` | Stream disclaimer + provider gate before play |
 | `assets/` | App icons, splash image, and bundled Geist Mono fonts |
 | `src-tauri/` | Tauri 2 desktop shell (Win / Linux / macOS) |
 
@@ -65,7 +66,7 @@ Desktop (Win / Linux / macOS) uses Tauri 2 wrapping the Expo web export. Require
 
 - Read and write app preferences only through `useSettings()`; it persists values in AsyncStorage.
 - Use `useTMDB()` for all TMDB calls (trending, popular, top-rated, upcoming, search, details, credits, recommendations, person, seasons). Do not reimplement bearer/API-key auth in screens.
-- `useMangaPlus()` owns device registration and the persisted MangaPlus device secret. Await its initialization before relying on its client calls.
+- Manga sources are MangaDex and AniList only (no MangaPlus).
 - IPTV playlist configuration, favorites, and recents belong in `useSettings()`. Validate M3U URLs and parsed channels before persisting or rendering them.
 - Existing external calls generally handle failures by returning empty data or setting screen-local error state. Preserve that user-facing behavior when extending a screen.
 - Do not log credentials, bearer tokens, device secrets, full authorization headers, or raw sensitive API responses. Prefer silent failure / empty returns over debug logging in hooks.
@@ -77,7 +78,7 @@ Desktop (Win / Linux / macOS) uses Tauri 2 wrapping the Expo web export. Require
 - Prefer quiet uppercase section labels, radius-8 controls, white primary CTAs, accent-border selected chips, Lucide icons (including `Star` for ratings — no emoji stars), and safe-area insets on headers.
 - Use `Colors` and `Fonts.GeistMono` rather than ad-hoc replacements for shared tokens.
 - Do not import `@react-navigation/*` in app code (SDK 56+). Use `expo-router/react-navigation`, `expo-router/js-tabs`, etc.
-- TMDB/MangaPlus clients expose stable `useCallback` fetchers. Screen loads use `useCallback` + `useEffect([loader])` (or a cancelable effect on Home); do not put unstable function identities in effect deps.
+- TMDB clients expose stable `useCallback` fetchers. Screen loads use `useCallback` + `useEffect([loader])` (or a cancelable effect on Home); do not put unstable function identities in effect deps.
 - Keep screen-local `StyleSheet.create` styles and functional-component patterns unless extracting a genuinely shared component.
 - Alerts: use `AppAlert.alert(title, message?, buttons?)` from `components/AppAlert.tsx`. Do not use React Native `Alert`. The root layout mounts `AlertProvider`.
 
@@ -91,7 +92,6 @@ Desktop (Win / Linux / macOS) uses Tauri 2 wrapping the Expo web export. Require
 
 - `.env` is local-only. Never commit API keys, bearer tokens, device secrets, release tokens, or signing credentials.
 - Expo exposes only variables prefixed `EXPO_PUBLIC_` to the app bundle. These values are public at runtime; they must not contain secrets.
-- `EXPO_PUBLIC_MANGAPLUS_BASE_URL` is required by `useMangaPlus.ts` and must point to a compatible MangaPlus API service.
 - TMDB credentials are entered in Settings and stored in AsyncStorage — not read from env by product code.
 - Stream embeds: users must accept the third-party disclaimer (`@stream_disclaimer_accepted`) before providers unlock. Defaults are empty (no silent Videasy). Play is gated in `details` / `player` via `ensureStreamPlaybackReady`.
 - Privacy: Yummy has no backend. Device-local storage only; summary in Settings → About. IPTV streams and public manga APIs can change or block clients; guard parsing and preserve fallback/error UI.

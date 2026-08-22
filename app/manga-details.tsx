@@ -2,7 +2,6 @@ import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
-import { useMangaPlus } from '@/hooks/useMangaPlus';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -11,7 +10,6 @@ import {
   BookOpen,
   ChevronDown,
   ExternalLink,
-  Heart,
 } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -45,7 +43,7 @@ interface MangaDetails {
   chapters?: number;
   genres?: string[];
   chapters_list?: Chapter[];
-  source: 'mangadex' | 'anilist' | 'mangaplus';
+  source: 'mangadex' | 'anilist';
   author?: string;
   viewCount?: number;
   rating?: string;
@@ -56,7 +54,6 @@ const PAGINATION_THRESHOLD = 30;
 
 const SOURCE_LABELS = {
   mangadex: 'MangaDex',
-  mangaplus: 'MangaPlus',
   anilist: 'AniList',
 } as const;
 
@@ -68,7 +65,7 @@ export default function MangaDetailsScreen() {
     description: string;
     status: string;
     chapters?: string;
-    source: 'mangadex' | 'anilist' | 'mangaplus';
+    source: 'mangadex' | 'anilist';
     author?: string;
     viewCount?: string;
   }>();
@@ -78,50 +75,17 @@ export default function MangaDetailsScreen() {
   const { height } = useWindowDimensions();
   const isDesktop = useIsDesktop();
   const heroHeight = isDesktop ? Math.min(height * 0.48, 480) : height * 0.48;
-  const mangaPlus = useMangaPlus();
-  const { isInitialized, fetchTitleDetails, addFavorite, removeFavorite } = mangaPlus;
   const [details, setDetails] = useState<MangaDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [displayedChapterCount, setDisplayedChapterCount] = useState(20);
-  const [isFavorite, setIsFavorite] = useState(false);
 
   const loadMangaDetails = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      if (params.source === 'mangaplus') {
-        const titleDetails = await fetchTitleDetails(parseInt(params.id));
-        if (!titleDetails) {
-          throw new Error('Failed to fetch MangaPlus details');
-        }
-
-        const allChapters: Chapter[] = [];
-        (titleDetails.chapterListV2 || []).forEach((ch: any) => {
-          allChapters.push({
-            id: ch.chapterId.toString(),
-            title: ch.subTitle || ch.name,
-            chapter: ch.name.replace('#', ''),
-            pages: 0,
-          });
-        });
-
-        setDetails({
-          id: params.id,
-          title: titleDetails.title.name,
-          coverImage: titleDetails.titleImageUrl || titleDetails.title.portraitImageUrl,
-          description: titleDetails.overview,
-          status: titleDetails.isSimulReleased ? 'Ongoing' : 'Completed',
-          chapters: allChapters.length,
-          genres: titleDetails.tags.map((tag: any) => tag.tag),
-          chapters_list: allChapters,
-          source: 'mangaplus',
-          author: titleDetails.title.author,
-          viewCount: titleDetails.numberOfViews,
-          rating: titleDetails.rating,
-        });
-      } else if (params.source === 'mangadex') {
+      if (params.source === 'mangadex') {
         const response = await fetch(
           `https://api.mangadex.org/manga/${params.id}?includes[]=cover_art&includes[]=author&includes[]=artist`
         );
@@ -206,13 +170,11 @@ export default function MangaDetailsScreen() {
     params.coverImage,
     params.description,
     params.status,
-    fetchTitleDetails,
   ]);
 
   useEffect(() => {
-    if (params.source === 'mangaplus' && !isInitialized) return;
     void loadMangaDetails();
-  }, [params.source, isInitialized, loadMangaDetails]);
+  }, [loadMangaDetails]);
 
   const loadMoreChapters = () => {
     const totalChapters = details?.chapters_list?.length || 0;
@@ -220,25 +182,9 @@ export default function MangaDetailsScreen() {
     setDisplayedChapterCount(newCount);
   };
 
-  const toggleFavorite = async () => {
-    if (params.source !== 'mangaplus') return;
-
-    try {
-      if (isFavorite) {
-        await removeFavorite(parseInt(params.id));
-        setIsFavorite(false);
-      } else {
-        await addFavorite(parseInt(params.id));
-        setIsFavorite(true);
-      }
-    } catch { }
-  };
-
   const openInBrowser = () => {
     if (params.source === 'mangadex') {
       Linking.openURL(`https://mangadex.org/title/${params.id}`);
-    } else if (params.source === 'mangaplus') {
-      Linking.openURL(`https://mangaplus.shueisha.co.jp/titles/${params.id}`);
     } else {
       Linking.openURL(`https://anilist.co/manga/${params.id}`);
     }
@@ -318,21 +264,6 @@ export default function MangaDetailsScreen() {
           >
             <ArrowLeft size={20} color="#fff" />
           </TouchableOpacity>
-
-          {params.source === 'mangaplus' ? (
-            <TouchableOpacity
-              style={[styles.favoriteButton, { top: insets.top + 8 }]}
-              onPress={toggleFavorite}
-              activeOpacity={0.85}
-              accessibilityLabel={isFavorite ? 'Remove favorite' : 'Add favorite'}
-            >
-              <Heart
-                size={20}
-                color={isFavorite ? Colors.accent : '#fff'}
-                fill={isFavorite ? Colors.accent : 'none'}
-              />
-            </TouchableOpacity>
-          ) : null}
 
           <Animated.View entering={FadeInDown.duration(250)} style={styles.heroContent}>
             <Image source={{ uri: details.coverImage }} style={styles.coverImage} />
@@ -471,17 +402,7 @@ export default function MangaDetailsScreen() {
             <View style={styles.noteSection}>
               <Text style={styles.noteText}>
                 AniList is a database and doesn’t provide chapter reading. Open in AniList for
-                official sources, or search this title on MangaDex / MangaPlus.
-              </Text>
-            </View>
-          ) : null}
-
-          {details.source === 'mangaplus' &&
-          details.chapters_list &&
-          details.chapters_list.length > 0 ? (
-            <View style={styles.noteSection}>
-              <Text style={styles.noteText}>
-                Official Shueisha manga. Tap a chapter to start reading.
+                official sources, or search this title on MangaDex.
               </Text>
             </View>
           ) : null}
@@ -566,17 +487,6 @@ const styles = StyleSheet.create({
   backButton: {
     position: 'absolute',
     left: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  favoriteButton: {
-    position: 'absolute',
-    right: 16,
     width: 40,
     height: 40,
     borderRadius: 8,

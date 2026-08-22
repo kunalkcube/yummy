@@ -27,7 +27,7 @@ Personal media client for movies, TV, manga, and IPTV — built with React Nativ
 - In-player ad blocking (host blocklist + DOM/popup cleanup)
 
 ### Manga
-- Discover and search via MangaPlus, MangaDex, and AniList
+- Discover and search via MangaDex and AniList
 - Chapter list and gesture-based reader (pinch / pan)
 
 ### IPTV
@@ -51,7 +51,6 @@ Personal media client for movies, TV, manga, and IPTV — built with React Nativ
 
 - Node.js + npm
 - A free [TMDB API key](https://www.themoviedb.org/settings/api) (or read-access token)
-- MangaPlus base URL if you use that source (`EXPO_PUBLIC_MANGAPLUS_BASE_URL`)
 
 ## Getting Started
 
@@ -62,13 +61,10 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env`:
+Edit `.env` if you want a local TMDB key reference (optional — the app reads TMDB credentials from Settings):
 
 ```env
-# Optional local reference — the app reads TMDB credentials from Settings
 TMDB_API_KEY=your_tmdb_api_key_here
-
-EXPO_PUBLIC_MANGAPLUS_BASE_URL=https://your-mangaplus-api-url.com/api
 ```
 
 Start the app:
@@ -80,7 +76,7 @@ npm run android
 npm run ios
 ```
 
-Then open **Settings**, paste your TMDB API key or bearer token, and pick a stream provider.
+Then open **Settings**, accept the stream notice if you use embeds, paste your TMDB API key or bearer token, and pick a stream provider.
 
 ## IPTV
 
@@ -98,7 +94,7 @@ Some networks block TMDB. Use Cloudflare DNS if requests fail:
 
 ## Privacy
 
-Yummy has **no backend**. TMDB credentials, IPTV playlists/channels, favorites, and MangaPlus device IDs stay on this device (AsyncStorage). Network traffic goes only to the third-party APIs you use (TMDB, IPTV playlists, manga sources, stream embeds).
+Yummy has **no backend**. TMDB credentials, IPTV playlists/channels, favorites, and stream-disclaimer acceptance stay on this device (AsyncStorage). Network traffic goes only to the third-party APIs you use (TMDB, IPTV playlists, manga sources, stream embeds).
 
 ## Commands
 

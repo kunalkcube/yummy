@@ -3,14 +3,16 @@ import { SeasonsList } from '@/components/SeasonsList';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
+import { LibraryMediaType } from '@/constants/library';
+import { useLibrary } from '@/contexts/LibraryContext';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { CastMember, Movie, useTMDB } from '@/hooks/useTMDB';
 import { ensureStreamPlaybackReady } from '@/utils/streamPlaybackGate';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { AlertCircle, ArrowLeft, Film, Play, Star, Tv, User } from 'lucide-react-native';
-import { useCallback, useEffect, useState } from 'react';
+import { AlertCircle, ArrowLeft, Bookmark, Film, Play, Star, Tv, User } from 'lucide-react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -33,6 +35,8 @@ interface Genre {
 
 export default function DetailsScreen() {
   const { id, type } = useLocalSearchParams<{ id: string; type: 'movie' | 'tv' }>();
+  const mediaType = (type === 'tv' ? 'tv' : 'movie') as LibraryMediaType;
+  const numericId = Number(id);
   const { fetchDetails, fetchCredits, fetchRecommendations } = useTMDB();
   const {
     streamDisclaimerAccepted,
@@ -40,6 +44,12 @@ export default function DetailsScreen() {
     streamUrl,
     acceptStreamDisclaimer,
   } = useSettings();
+  const {
+    isInWatchlist,
+    toggleWatchlist,
+    getContinueItem,
+    recordContinueWatching,
+  } = useLibrary();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
@@ -53,6 +63,12 @@ export default function DetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [showAllCast, setShowAllCast] = useState(false);
   const [showAllRecommendations, setShowAllRecommendations] = useState(false);
+
+  const savedInWatchlist = isInWatchlist(numericId, mediaType);
+  const continueItem = useMemo(
+    () => (Number.isFinite(numericId) ? getContinueItem(numericId, mediaType) : undefined),
+    [getContinueItem, mediaType, numericId]
+  );
 
   const loadDetails = useCallback(async () => {
     if (!id || !type) return;
@@ -77,15 +93,19 @@ export default function DetailsScreen() {
   }, [loadDetails]);
 
   const handleWatchNow = (season?: number, episode?: number) => {
+    const title = details?.title || details?.name || 'Unknown';
     const params: Record<string, string> = {
       id: String(id),
       type: String(type),
-      title: details?.title || details?.name || 'Unknown',
+      title,
     };
 
+    const playSeason = type === 'tv' ? season ?? continueItem?.season ?? 1 : undefined;
+    const playEpisode = type === 'tv' ? episode ?? continueItem?.episode ?? 1 : undefined;
+
     if (type === 'tv') {
-      params.season = season?.toString() || '1';
-      params.episode = episode?.toString() || '1';
+      params.season = String(playSeason);
+      params.episode = String(playEpisode);
     }
 
     ensureStreamPlaybackReady({
@@ -97,6 +117,17 @@ export default function DetailsScreen() {
         router.push('/(tabs)/settings');
       },
       onReady: () => {
+        if (details && Number.isFinite(numericId)) {
+          void recordContinueWatching({
+            id: numericId,
+            type: mediaType,
+            title,
+            posterPath: details.poster_path,
+            backdropPath: details.backdrop_path,
+            season: playSeason,
+            episode: playEpisode,
+          });
+        }
         router.push({
           pathname: '/player',
           params,
@@ -107,6 +138,17 @@ export default function DetailsScreen() {
 
   const handleEpisodePress = (season: number, episode: number) => {
     handleWatchNow(season, episode);
+  };
+
+  const handleToggleWatchlist = () => {
+    if (!details || !Number.isFinite(numericId)) return;
+    void toggleWatchlist({
+      id: numericId,
+      type: mediaType,
+      title: details.title || details.name || 'Unknown',
+      posterPath: details.poster_path,
+      backdropPath: details.backdrop_path,
+    });
   };
 
   if (loading) {
@@ -242,6 +284,19 @@ export default function DetailsScreen() {
             <ArrowLeft size={20} color="#fff" />
           </TouchableOpacity>
 
+          <TouchableOpacity
+            style={[styles.watchlistButton, { top: insets.top + 8 }]}
+            onPress={handleToggleWatchlist}
+            activeOpacity={0.85}
+            accessibilityLabel={savedInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
+          >
+            <Bookmark
+              size={20}
+              color={savedInWatchlist ? Colors.accent : '#fff'}
+              fill={savedInWatchlist ? Colors.accent : 'none'}
+            />
+          </TouchableOpacity>
+
           <Animated.View
             entering={FadeInDown.duration(250)}
             style={styles.heroContent}
@@ -309,7 +364,13 @@ export default function DetailsScreen() {
             activeOpacity={0.85}
           >
             <Play size={18} color="#000" fill="#000" />
-            <Text style={styles.watchButtonText}>Watch Now</Text>
+            <Text style={styles.watchButtonText}>
+              {type === 'tv' &&
+              continueItem?.season != null &&
+              continueItem?.episode != null
+                ? `Continue S${continueItem.season} · E${continueItem.episode}`
+                : 'Watch Now'}
+            </Text>
           </TouchableOpacity>
 
           <View style={styles.section}>
@@ -473,6 +534,17 @@ const styles = StyleSheet.create({
   backButton: {
     position: 'absolute',
     left: 16,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 8,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  watchlistButton: {
+    position: 'absolute',
+    right: 16,
     backgroundColor: 'rgba(0,0,0,0.55)',
     borderRadius: 8,
     width: 40,

@@ -1,15 +1,23 @@
+import { ContinueWatchingRow } from '@/components/ContinueWatchingRow';
 import { MovieRow } from '@/components/MovieRow';
 import { ProviderChips } from '@/components/ProviderChips';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
+import {
+  ContinueWatchingItem,
+  toMovieFromLibrary,
+} from '@/constants/library';
 import { STREAMING_PROVIDERS } from '@/constants/providers';
+import { useLibrary } from '@/contexts/LibraryContext';
+import { useSettings } from '@/contexts/SettingsContext';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { Movie, useTMDB } from '@/hooks/useTMDB';
+import { ensureStreamPlaybackReady } from '@/utils/streamPlaybackGate';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Film, Play, Sparkles, Star, TrendingUp, Tv } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { Bookmark, Film, Play, Sparkles, Star, TrendingUp, Tv } from 'lucide-react-native';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -31,6 +39,14 @@ export default function HomeScreen() {
     fetchTopRated,
     fetchUpcoming,
   } = useTMDB();
+  const { continueWatching, watchlist, removeContinueWatching, recordContinueWatching } =
+    useLibrary();
+  const {
+    streamDisclaimerAccepted,
+    streamProvider,
+    streamUrl,
+    acceptStreamDisclaimer,
+  } = useSettings();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -44,6 +60,8 @@ export default function HomeScreen() {
   const [upcomingMovies, setUpcomingMovies] = useState<Movie[]>([]);
   const [featuredMovie, setFeaturedMovie] = useState<Movie | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const watchlistMovies = useMemo(() => watchlist.map(toMovieFromLibrary), [watchlist]);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +136,50 @@ export default function HomeScreen() {
     router.push({
       pathname: '/details',
       params: { id: featuredMovie.id, type },
+    });
+  };
+
+  const handleResume = (item: ContinueWatchingItem) => {
+    const params: Record<string, string> = {
+      id: String(item.id),
+      type: item.type,
+      title: item.title,
+    };
+    if (item.type === 'tv') {
+      params.season = String(item.season ?? 1);
+      params.episode = String(item.episode ?? 1);
+    }
+
+    ensureStreamPlaybackReady({
+      streamDisclaimerAccepted,
+      streamProvider,
+      streamUrl,
+      acceptStreamDisclaimer,
+      openSettings: () => {
+        router.push('/(tabs)/settings');
+      },
+      onReady: () => {
+        void recordContinueWatching({
+          id: item.id,
+          type: item.type,
+          title: item.title,
+          posterPath: item.posterPath,
+          backdropPath: item.backdropPath,
+          season: item.season,
+          episode: item.episode,
+        });
+        router.push({
+          pathname: '/player',
+          params,
+        });
+      },
+    });
+  };
+
+  const handleOpenContinueDetails = (item: ContinueWatchingItem) => {
+    router.push({
+      pathname: '/details',
+      params: { id: item.id, type: item.type },
     });
   };
 
@@ -211,6 +273,15 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
 
+        {continueWatching.length > 0 && (
+          <ContinueWatchingRow
+            items={continueWatching}
+            onResume={handleResume}
+            onRemove={(item) => void removeContinueWatching(item.id, item.type)}
+            onOpenDetails={handleOpenContinueDetails}
+          />
+        )}
+
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionLabel}>
             {selectedProvider ? getProviderName() : 'Explore'}
@@ -257,6 +328,10 @@ export default function HomeScreen() {
             icon={Sparkles}
             mediaType="movie"
           />
+        )}
+
+        {watchlistMovies.length > 0 && (
+          <MovieRow title="My List" movies={watchlistMovies} icon={Bookmark} />
         )}
 
         {trending.length === 0 &&

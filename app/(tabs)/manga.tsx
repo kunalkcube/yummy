@@ -2,10 +2,9 @@ import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
 import { webInputReset } from '@/constants/inputStyles';
-import { useMangaPlus } from '@/hooks/useMangaPlus';
 import { useRouter } from 'expo-router';
-import { AlertCircle, BookOpen, Search, TrendingUp, X } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { AlertCircle, BookOpen, Search, X } from 'lucide-react-native';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -18,7 +17,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-type MangaSource = 'mangadex' | 'anilist' | 'mangaplus';
+type MangaSource = 'mangadex' | 'anilist';
 
 interface MangaResult {
   id: string;
@@ -33,7 +32,6 @@ interface MangaResult {
 }
 
 const SOURCES: { id: MangaSource; label: string }[] = [
-  { id: 'mangaplus', label: 'MangaPlus' },
   { id: 'mangadex', label: 'MangaDex' },
   { id: 'anilist', label: 'AniList' },
 ];
@@ -41,45 +39,11 @@ const SOURCES: { id: MangaSource; label: string }[] = [
 export default function MangaScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const mangaPlus = useMangaPlus();
-  const { isInitialized, fetchRanking } = mangaPlus;
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<MangaResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedSource, setSelectedSource] = useState<MangaSource>('mangaplus');
-  const [trendingManga, setTrendingManga] = useState<MangaResult[]>([]);
-
-  useEffect(() => {
-    if (!isInitialized || selectedSource !== 'mangaplus') return;
-
-    let cancelled = false;
-    void (async () => {
-      try {
-        const rankings = await fetchRanking('hottest');
-        if (cancelled) return;
-        const trending = rankings.slice(0, 20).flatMap((ranking) =>
-          ranking.titles
-            .filter((title) => title.language === 'ENGLISH')
-            .map((title) => ({
-              id: title.titleId.toString(),
-              title: title.name,
-              coverImage: title.portraitImageUrl,
-              description: '',
-              status: title.titleUpdateStatus,
-              author: title.author,
-              viewCount: title.viewCount,
-              source: 'mangaplus' as const,
-            }))
-        );
-        setTrendingManga(trending);
-      } catch { }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isInitialized, selectedSource, fetchRanking]);
+  const [selectedSource, setSelectedSource] = useState<MangaSource>('mangadex');
 
   const searchMangaDex = async (query: string) => {
     try {
@@ -180,59 +144,30 @@ export default function MangaScreen() {
     }
   };
 
-  const searchMangaPlus = async (query: string) => {
-    try {
-      const titleGroups = await mangaPlus.searchTitles(query);
+  const handleSearch = async (text: string) => {
+    setSearchQuery(text);
+    if (text.length > 2) {
+      setLoading(true);
+      setError(null);
+      try {
+        let searchResults: MangaResult[] = [];
 
-      return titleGroups.flatMap((group) =>
-        group.titles
-          .filter((title) => title.language === 'ENGLISH')
-          .map((title) => ({
-            id: title.titleId.toString(),
-            title: title.name,
-            coverImage: title.portraitImageUrl,
-            description: '',
-            status: title.titleUpdateStatus,
-            author: title.author,
-            viewCount: title.viewCount,
-            source: 'mangaplus' as const,
-          }))
-      );
-    } catch {
-      return [];
-    }
-  };
+        if (selectedSource === 'mangadex') {
+          searchResults = await searchMangaDex(text);
+        } else {
+          searchResults = await searchAniList(text);
+        }
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      if (selectedSource === 'mangaplus') {
-        setResults(trendingManga);
+        setResults(searchResults);
+      } catch (err: any) {
+        setError(err.message || `Failed to search ${selectedSource}. Please try again.`);
+        setResults([]);
+      } finally {
+        setLoading(false);
       }
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    try {
-      let searchResults: MangaResult[] = [];
-
-      if (selectedSource === 'mangadex') {
-        searchResults = await searchMangaDex(searchQuery);
-      } else if (selectedSource === 'anilist') {
-        searchResults = await searchAniList(searchQuery);
-      } else if (selectedSource === 'mangaplus') {
-        searchResults = await searchMangaPlus(searchQuery);
-      }
-
-      setResults(searchResults);
-
-      if (searchResults.length === 0) {
-        setError('No results found. Try a different search term.');
-      }
-    } catch (err: any) {
-      setError(err.message || `Failed to search ${selectedSource}. Please try again.`);
+    } else {
       setResults([]);
-    } finally {
+      setError(null);
       setLoading(false);
     }
   };
@@ -309,12 +244,6 @@ export default function MangaScreen() {
   };
 
   const showingResults = results.length > 0;
-  const showingTrending =
-    !showingResults &&
-    !loading &&
-    !error &&
-    selectedSource === 'mangaplus' &&
-    trendingManga.length > 0;
 
   return (
     <ScreenContainer style={styles.container}>
@@ -353,30 +282,23 @@ export default function MangaScreen() {
             placeholder="Search manga..."
             placeholderTextColor={Colors.textSecondary}
             value={searchQuery}
-            onChangeText={setSearchQuery}
-            onSubmitEditing={handleSearch}
-            returnKeyType="search"
+            onChangeText={handleSearch}
             autoCapitalize="none"
             autoCorrect={false}
+            returnKeyType="search"
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity
               onPress={clearSearch}
+              style={styles.clearButton}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <X size={18} color={Colors.textSecondary} />
             </TouchableOpacity>
           )}
-          <TouchableOpacity
-            style={styles.searchButton}
-            onPress={handleSearch}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.searchButtonText}>Go</Text>
-          </TouchableOpacity>
         </View>
 
-        {showingResults && (
+        {showingResults && !loading && (
           <Text style={styles.resultCount}>
             {results.length} result{results.length === 1 ? '' : 's'}
           </Text>
@@ -392,16 +314,16 @@ export default function MangaScreen() {
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={Colors.accent} />
-            <Text style={styles.loadingText}>Searching {selectedSource}...</Text>
+            <Text style={styles.loadingText}>Searching...</Text>
           </View>
-        ) : error ? (
+        ) : error && searchQuery.length > 2 ? (
           <View style={styles.emptyContainer}>
             <AlertCircle size={40} color={Colors.textSecondary} />
             <Text style={styles.emptyTitle}>Something went wrong</Text>
             <Text style={styles.emptyText}>{error}</Text>
             <TouchableOpacity
               style={styles.retryButton}
-              onPress={handleSearch}
+              onPress={() => handleSearch(searchQuery)}
               activeOpacity={0.85}
             >
               <Text style={styles.retryButtonText}>Try Again</Text>
@@ -409,21 +331,31 @@ export default function MangaScreen() {
           </View>
         ) : showingResults ? (
           <View style={styles.list}>{results.map(renderMangaRow)}</View>
-        ) : showingTrending ? (
-          <View>
-            <View style={styles.sectionHeader}>
-              <TrendingUp size={14} color={Colors.accent} />
-              <Text style={styles.sectionLabel}>Trending</Text>
-            </View>
-            <View style={styles.list}>{trendingManga.map(renderMangaRow)}</View>
-          </View>
         ) : (
           <View style={styles.emptyContainer}>
-            <BookOpen size={40} color={Colors.textSecondary} />
-            <Text style={styles.emptyTitle}>Discover manga</Text>
-            <Text style={styles.emptyText}>
-              MangaPlus for official titles, MangaDex for scans, AniList for discovery
-            </Text>
+            {searchQuery.length === 0 ? (
+              <>
+                <BookOpen size={40} color={Colors.textSecondary} />
+                <Text style={styles.emptyTitle}>Discover manga</Text>
+                <Text style={styles.emptyText}>
+                  MangaDex for chapters, AniList for discovery
+                </Text>
+              </>
+            ) : searchQuery.length <= 2 ? (
+              <>
+                <BookOpen size={40} color={Colors.textSecondary} />
+                <Text style={styles.emptyTitle}>Keep typing</Text>
+                <Text style={styles.emptyText}>
+                  Enter at least 3 characters to search
+                </Text>
+              </>
+            ) : (
+              <>
+                <AlertCircle size={40} color={Colors.textSecondary} />
+                <Text style={styles.emptyTitle}>No results</Text>
+                <Text style={styles.emptyText}>Try different keywords</Text>
+              </>
+            )}
           </View>
         )}
       </ScrollView>
@@ -480,8 +412,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.surface,
     borderRadius: 8,
-    paddingLeft: 14,
-    paddingRight: 6,
+    paddingHorizontal: 14,
     height: 48,
     gap: 10,
   },
@@ -493,16 +424,8 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     ...webInputReset,
   },
-  searchButton: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  searchButtonText: {
-    color: '#000',
-    fontSize: 13,
-    fontFamily: Fonts.GeistMono.Bold,
+  clearButton: {
+    padding: 2,
   },
   resultCount: {
     marginTop: 12,
@@ -518,20 +441,6 @@ const styles = StyleSheet.create({
   resultsContent: {
     paddingBottom: 48,
     flexGrow: 1,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-  sectionLabel: {
-    fontSize: 13,
-    fontFamily: Fonts.GeistMono.SemiBold,
-    color: Colors.textSecondary,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
   },
   list: {
     paddingHorizontal: 16,

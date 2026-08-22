@@ -7,7 +7,7 @@
 1. TMDB discovery for movies, TV shows, people, cast, and recommendations.
 2. Configurable third-party streaming-provider embeds (`app/player.tsx`: WebView on native, `<iframe>` on web/Tauri).
 3. Public direct IPTV playback from IPTV-org and saved M3U playlists.
-4. Manga discovery and reading via MangaPlus, MangaDex, and AniList.
+4. Manga discovery and reading via MangaDex and AniList.
 
 The app is an Expo Router application with a dark, Netflix-inspired visual system: black/surface/card layers, red accent (`#e50914`), quiet uppercase labels, radius-8 chrome, white primary CTAs, and bundled Geist Mono (**Regular / Medium / SemiBold / Bold** only). Android is configured as `com.kunalkongkan.yummy`; web uses Expo static output. Desktop (Win / Linux / macOS) is a Tauri 2 shell around that web export (`src-tauri/`, identifier `com.kunalkongkan.yummy`). The native Android directory may exist locally but is ignored by Git.
 
@@ -34,7 +34,7 @@ flowchart TD
     Search --> TMDB
     Details --> TMDB
     Player --> Providers[Third-party stream providers]
-    MangaTab --> MangaAPIs[MangaPlus / MangaDex / AniList]
+    MangaTab --> MangaAPIs[MangaDex / AniList]
     Manga --> MangaAPIs
     IptvTab --> IptvOrg[IPTV-org / saved M3U playlists]
     IptvTab --> IptvPlayer[Direct Plyr player]
@@ -48,7 +48,7 @@ flowchart TD
 | `/(tabs)` | Bottom-tab shell | Defined by `app/(tabs)/_layout.tsx` |
 | `/(tabs)/index` | Home discovery | TMDB credential; optional TMDB provider filter |
 | `/(tabs)/search` | TMDB multi-search | TMDB credential; search starts at 3 characters |
-| `/(tabs)/manga` | Manga source selector/search | MangaPlus device initialization; MangaDex or AniList network access |
+| `/(tabs)/manga` | Manga source selector/search | MangaDex or AniList network access |
 | `/(tabs)/iptv` | IPTV playlist, group, and channel browser | IPTV-org plus saved M3U / custom channels |
 | `/(tabs)/settings` | Stream provider, TMDB, IPTV playlists/channels | `SettingsContext`; AsyncStorage; `AppAlert` |
 | `/details` | Movie/TV metadata, cast, seasons, recommendations | `id`, `type` (`movie`/`tv`) |
@@ -81,9 +81,9 @@ Custom channels (`iptvChannels`) are individual direct stream URLs. They are mar
 
 Use `useSettings()` instead of direct AsyncStorage access in product features. Settings load asynchronously after mount; screens must tolerate defaults until persisted values arrive.
 
-### MangaPlus device identity
+### Library (watchlist / continue watching)
 
-`hooks/useMangaPlus.ts` has a singleton manager. On first use it registers a device against `EXPO_PUBLIC_MANGAPLUS_BASE_URL` and stores its ID/secret as `@mangaplus_device_id` and `@mangaplus_device_secret`. API calls require initialization and return safe empty values on most failures.
+`contexts/LibraryContext.tsx` stores TMDB titles in AsyncStorage (`@library_watchlist`, `@library_continue_watching`). Caps: 200 watchlist / 20 continue. Details bookmark toggles watchlist; starting playback records continue progress (TV keeps season/episode). Home: Continue Watching is a landscape resume row under the hero (tap = play, X = remove, long-press = details); My List is a portrait row below Coming Soon. Prefer AsyncStorage over SQLite for this scale.
 
 ## Data and External Contracts
 
@@ -103,9 +103,8 @@ Provider-filtered popularity uses the `IN` region. Curated provider IDs/logos li
 
 | Source | Discovery/details | Reading | Notes |
 | --- | --- | --- | --- |
-| MangaPlus | `useMangaPlus` | Chapter endpoint via same client | Device registration; English titles filtered |
 | MangaDex | `api.mangadex.org` | At-Home server URLs | English chapter feed |
-| AniList | `graphql.anilist.co` | Consumet AniList manga endpoint | Metadata only for reading; Consumet is unstable |
+| AniList | `graphql.anilist.co` | Consumet AniList manga endpoint | Metadata primarily; Consumet reading is unstable |
 
 Source selection lives in `app/(tabs)/manga.tsx`. `manga-details.tsx` fetches source-specific details and opens the reader when chapters exist. The reader uses Gesture Handler / Reanimated for pinch/pan.
 
@@ -133,7 +132,6 @@ Expo starter artifacts (themed components, `/modal`, `EmptyState`, debug helpers
 ## Environment and Secrets
 
 - `.env` is gitignored and must stay local. A real `TMDB_API_KEY` may exist there for local tooling; product code does **not** read it — users enter TMDB credentials in Settings.
-- `EXPO_PUBLIC_MANGAPLUS_BASE_URL` is required at bundle time by MangaPlus. It is public configuration, not a secret store.
 - Never commit API keys, bearer tokens, device secrets, or signing credentials.
 - Do not log credential prefixes, lengths, or Authorization headers.
 - Privacy: Yummy has no backend/server. Device-local AsyncStorage only; see Settings → About.
@@ -147,7 +145,7 @@ Expo starter artifacts (themed components, `/modal`, `EmptyState`, debug helpers
 - TypeScript is strict; `@/*` resolves from the repo root.
 - ESLint: Expo flat config (`eslint-config-expo` ~57); ignores `dist/*`. `react-hooks/set-state-in-effect` is off for intentional screen fetch effects.
 - Tab bar types come from Expo Router’s vendored React Navigation (`expo-router/js-tabs` / `expo-router/react-navigation`). Do not import `@react-navigation/*` in app code (SDK 56+).
-- `useTMDB` / key `useMangaPlus` methods are `useCallback`-stable so screen load effects do not re-fire every render.
+- `useTMDB` methods are `useCallback`-stable so screen load effects do not re-fire every render.
 - Tauri 2: `@tauri-apps/cli` in devDependencies; `src-tauri/tauri.conf.json` uses `frontendDist: ../dist`, `devUrl: http://localhost:8081`, `beforeDevCommand: npx expo start --web`, `beforeBuildCommand: npx expo export -p web`. Desktop bundles land in `src-tauri/target/release/bundle/`.
 - `metro.config.js` must block `src-tauri/**` from Metro's watcher; otherwise `tauri:dev` crashes when cargo creates/deletes temp files under `target/debug/deps`.
 - No automated test framework or in-repo CI release pipeline; personal APKs via local/`expo run` or EAS when configured; desktop via `npm run tauri:build`. Keep keystores/signing credentials out of git.
@@ -156,7 +154,7 @@ Expo starter artifacts (themed components, `/modal`, `EmptyState`, debug helpers
 
 ## Known Maintenance Risks
 
-1. **IPTV and scraper volatility:** Streams, MangaDex, MangaPlus, and Consumet can break without app changes. Keep parsing defensive; test on device.
+1. **IPTV and scraper volatility:** Streams, MangaDex, and Consumet can break without app changes. Keep parsing defensive; test on device.
 2. **Large remote playlists:** IPTV-org is large (~14k channels). Keep lists virtualized; do not persist full remote playlists without a retention design.
 3. **No automated tests:** Rely on lint/typecheck plus manual navigation and failure-path checks.
 4. **Untrusted media surfaces:** User stream URLs and embedded WebViews/iframes are untrusted. On web/Tauri, `react-native-webview` is unsupported — players use native `iframe`. Keep URL validation, navigation allowlists, and log redaction.
