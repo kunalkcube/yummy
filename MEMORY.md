@@ -68,9 +68,10 @@ Root navigation is in `app/_layout.tsx`. It preloads the four Geist Mono weights
 
 | Value | Default | AsyncStorage key |
 | --- | --- | --- |
-| `streamUrl` | `https://player.videasy.net` | `@stream_url` |
+| `streamUrl` | empty until user picks a provider | `@stream_url` |
 | `tmdbApiKey` | empty string | `@tmdb_api_key` |
-| `streamProvider` | `videasy` | `@stream_provider` |
+| `streamProvider` | empty until user picks after disclaimer | `@stream_provider` |
+| `streamDisclaimerAccepted` | `false` | `@stream_disclaimer_accepted` (`1` when accepted) |
 | `iptvPlaylists` | IPTV-org categories plus custom entries | `@iptv_playlists` (custom only) |
 | `iptvChannels` | empty | `@iptv_channels` |
 | `iptvFavorites` | empty | `@iptv_favorites` |
@@ -92,7 +93,7 @@ Use `useSettings()` instead of direct AsyncStorage access in product features. S
 
 Screens should call `useTMDB()` methods only — do not duplicate auth headers in route files.
 
-Provider-filtered popularity uses the `IN` region. Curated provider IDs/logos live in `constants/providers.ts`. Embed providers (including VidSrc.sbs / display name Tiger) live in `constants/streamProviders.ts`.
+Provider-filtered popularity uses the `IN` region. Curated provider IDs/logos live in `constants/providers.ts`. Embed providers live in `constants/streamProviders.ts` (real names + hostnames; no alias nicknames). Playback requires accepting the third-party stream disclaimer (`constants/streamDisclaimer.ts`, gated via `utils/streamPlaybackGate.ts`) and selecting a provider in Settings — there is no silent default embed.
 
 ### IPTV
 

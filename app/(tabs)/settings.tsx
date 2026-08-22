@@ -3,12 +3,20 @@ import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
 import { webInputReset } from '@/constants/inputStyles';
-import { getStreamProvider, STREAM_PROVIDERS } from '@/constants/streamProviders';
+import {
+  STREAM_DISCLAIMER_MESSAGE,
+  STREAM_DISCLAIMER_TITLE,
+} from '@/constants/streamDisclaimer';
+import {
+  getProviderHostname,
+  getStreamProvider,
+  STREAM_PROVIDERS,
+} from '@/constants/streamProviders';
 import { useSettings } from '@/contexts/SettingsContext';
 import axios from 'axios';
 import Constants from 'expo-constants';
 import { Check, Trash2 } from 'lucide-react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Linking,
   ScrollView,
@@ -33,11 +41,13 @@ export default function SettingsScreen() {
     streamUrl,
     tmdbApiKey,
     streamProvider,
+    streamDisclaimerAccepted,
     iptvPlaylists,
     iptvChannels,
     setStreamUrl,
     setTmdbApiKey,
     setStreamProvider,
+    acceptStreamDisclaimer,
     addIptvPlaylist,
     removeIptvPlaylist,
     addIptvChannel,
@@ -52,7 +62,36 @@ export default function SettingsScreen() {
   const [iptvChannelName, setIptvChannelName] = useState('');
   const [iptvChannelUrl, setIptvChannelUrl] = useState('');
 
+  useEffect(() => {
+    setLocalProvider(streamProvider);
+  }, [streamProvider]);
+
+  useEffect(() => {
+    setLocalStreamUrl(streamUrl);
+  }, [streamUrl]);
+
+  const handleAcceptDisclaimer = async () => {
+    await acceptStreamDisclaimer();
+    AppAlert.alert(
+      'Notice accepted',
+      'You can choose a third-party embed provider below. You use it at your own risk.'
+    );
+  };
+
   const handleSaveProvider = async () => {
+    if (!streamDisclaimerAccepted) {
+      AppAlert.alert(
+        STREAM_DISCLAIMER_TITLE,
+        'Accept the third-party stream notice before choosing a provider.'
+      );
+      return;
+    }
+
+    if (!localProvider) {
+      AppAlert.alert('No provider selected', 'Pick an embed provider or Custom URL.');
+      return;
+    }
+
     await setStreamProvider(localProvider);
 
     if (localProvider !== 'custom') {
@@ -63,12 +102,20 @@ export default function SettingsScreen() {
       }
     }
 
-    AppAlert.alert('Success', 'Stream provider saved successfully');
+    AppAlert.alert('Saved', 'Stream provider saved.');
   };
 
   const handleSaveStreamUrl = async () => {
+    if (!streamDisclaimerAccepted) {
+      AppAlert.alert(
+        STREAM_DISCLAIMER_TITLE,
+        'Accept the third-party stream notice before saving a custom URL.'
+      );
+      return;
+    }
+
     await setStreamUrl(localStreamUrl);
-    AppAlert.alert('Success', 'Stream URL saved successfully');
+    AppAlert.alert('Saved', 'Custom stream URL saved.');
   };
 
   const handleSaveApiKey = async () => {
@@ -173,29 +220,66 @@ export default function SettingsScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Stream Provider</Text>
-        <Text style={styles.hint}>Choose where playback embeds load from.</Text>
+        <Text style={styles.hint}>
+          Unofficial third-party embeds. Yummy does not host video. Use at your own risk.
+        </Text>
+
+        <View style={styles.disclaimerCard}>
+          <Text style={styles.disclaimerTitle}>{STREAM_DISCLAIMER_TITLE}</Text>
+          <Text style={styles.disclaimerBody}>{STREAM_DISCLAIMER_MESSAGE}</Text>
+          {streamDisclaimerAccepted ? (
+            <Text style={styles.disclaimerAccepted}>Accepted on this device</Text>
+          ) : (
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={handleAcceptDisclaimer}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.primaryButtonText}>I understand — unlock providers</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {!streamDisclaimerAccepted ? (
+          <Text style={styles.lockedHint}>
+            Accept the notice above to choose a provider. Real hostnames are shown for transparency.
+          </Text>
+        ) : null}
 
         {STREAM_PROVIDERS.map((provider) => {
           const selected = localProvider === provider.id;
+          const host = getProviderHostname(provider.baseUrl);
           return (
             <TouchableOpacity
               key={provider.id}
-              style={[styles.providerOption, selected && styles.providerOptionSelected]}
-              onPress={() => setLocalProvider(provider.id)}
+              style={[
+                styles.providerOption,
+                selected && styles.providerOptionSelected,
+                !streamDisclaimerAccepted && styles.providerOptionLocked,
+              ]}
+              onPress={() => {
+                if (!streamDisclaimerAccepted) {
+                  AppAlert.alert(
+                    STREAM_DISCLAIMER_TITLE,
+                    'Accept the third-party stream notice first.'
+                  );
+                  return;
+                }
+                setLocalProvider(provider.id);
+              }}
               activeOpacity={0.85}
+              disabled={!streamDisclaimerAccepted}
             >
               <View style={styles.providerInfo}>
-                <Text style={styles.providerName}>
-                  {provider.displayName || provider.name}
-                </Text>
+                <Text style={styles.providerName}>{provider.name}</Text>
                 {provider.id === 'custom' ? (
-                  <Text style={styles.providerUrl}>Use your own streaming URL</Text>
-                ) : provider.baseUrl ? (
+                  <Text style={styles.providerUrl}>Paste your own HTTPS embed base URL</Text>
+                ) : host ? (
                   <Text style={styles.providerUrl} numberOfLines={1}>
-                    {provider.baseUrl}
+                    {host}
                   </Text>
                 ) : null}
-                {selected && provider.id !== 'custom' && provider.baseUrl ? (
+                {selected && streamDisclaimerAccepted && provider.id !== 'custom' && provider.baseUrl ? (
                   <View style={styles.exampleUrls}>
                     <Text style={styles.exampleUrl} numberOfLines={1}>
                       Movie · {provider.constructUrl({ type: 'movie', id: '299534' })}
@@ -212,21 +296,24 @@ export default function SettingsScreen() {
                   </View>
                 ) : null}
               </View>
-              {selected && <Check size={18} color={Colors.accent} />}
+              {selected && streamDisclaimerAccepted ? (
+                <Check size={18} color={Colors.accent} />
+              ) : null}
             </TouchableOpacity>
           );
         })}
 
         <TouchableOpacity
-          style={styles.primaryButton}
+          style={[styles.primaryButton, !streamDisclaimerAccepted && styles.primaryButtonDisabled]}
           onPress={handleSaveProvider}
           activeOpacity={0.85}
+          disabled={!streamDisclaimerAccepted}
         >
           <Text style={styles.primaryButtonText}>Save Provider</Text>
         </TouchableOpacity>
       </View>
 
-      {localProvider === 'custom' && (
+      {streamDisclaimerAccepted && localProvider === 'custom' && (
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Custom Stream URL</Text>
           <TextInput
@@ -409,8 +496,8 @@ export default function SettingsScreen() {
         </TouchableOpacity>
         <Text style={[styles.aboutMeta, styles.privacyNote]}>
           Privacy: Yummy has no backend. TMDB credentials, IPTV playlists/channels, favorites, and
-          MangaPlus device IDs stay on this device (AsyncStorage). Network requests go only to the
-          third-party APIs you use (TMDB, IPTV playlists, manga sources).
+          stream-disclaimer acceptance stay on this device (AsyncStorage). Network requests go only to
+          the third-party APIs you use (TMDB, IPTV playlists, manga sources, stream embeds).
         </Text>
       </View>
 
@@ -454,6 +541,38 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginBottom: 12,
   },
+  disclaimerCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.card,
+    padding: 14,
+    marginBottom: 14,
+    gap: 10,
+  },
+  disclaimerTitle: {
+    fontSize: 14,
+    fontFamily: Fonts.GeistMono.SemiBold,
+    color: Colors.text,
+  },
+  disclaimerBody: {
+    fontSize: 12,
+    fontFamily: Fonts.GeistMono.Regular,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+  disclaimerAccepted: {
+    fontSize: 12,
+    fontFamily: Fonts.GeistMono.SemiBold,
+    color: Colors.accent,
+  },
+  lockedHint: {
+    fontSize: 12,
+    fontFamily: Fonts.GeistMono.Regular,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
   input: {
     backgroundColor: Colors.surface,
     color: Colors.text,
@@ -470,6 +589,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
+  },
+  primaryButtonDisabled: {
+    opacity: 0.4,
   },
   primaryButtonText: {
     color: '#000',
@@ -534,6 +656,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderWidth: 1.5,
     borderColor: 'transparent',
+  },
+  providerOptionLocked: {
+    opacity: 0.45,
   },
   providerOptionSelected: {
     borderColor: Colors.accent,

@@ -23,7 +23,7 @@ Personal media client for movies, TV, manga, and IPTV — built with React Nativ
 - Search the TMDB catalog
 - Details with cast, seasons/episodes, and recommendations
 - Person profiles and filmography
-- Play through configurable third-party embed providers (WebView)
+- Play through configurable third-party embed providers (WebView) after accepting an on-device risk notice; real hostnames shown in Settings
 - In-player ad blocking (host blocklist + DOM/popup cleanup)
 
 ### Manga
@@ -111,4 +111,4 @@ Yummy has **no backend**. TMDB credentials, IPTV playlists/channels, favorites, 
 
 ---
 
-Built by [kunalkcube](https://github.com/kunalkcube)
+Built by [kunalkcube](https://github.com/kunalkcube) · Licensed under [MIT](./LICENSE)

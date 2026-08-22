@@ -7,6 +7,7 @@ interface SettingsContextType {
   streamUrl: string;
   tmdbApiKey: string;
   streamProvider: string;
+  streamDisclaimerAccepted: boolean;
   iptvPlaylists: IptvPlaylist[];
   iptvChannels: IptvChannel[];
   iptvFavorites: IptvChannel[];
@@ -14,6 +15,7 @@ interface SettingsContextType {
   setStreamUrl: (url: string) => Promise<void>;
   setTmdbApiKey: (key: string) => Promise<void>;
   setStreamProvider: (provider: string) => Promise<void>;
+  acceptStreamDisclaimer: () => Promise<void>;
   addIptvPlaylist: (input: { name: string; url: string }) => Promise<void>;
   removeIptvPlaylist: (playlistId: string) => Promise<void>;
   addIptvChannel: (input: { name: string; url: string }) => Promise<void>;
@@ -28,6 +30,7 @@ const STORAGE_KEYS = {
   STREAM_URL: '@stream_url',
   TMDB_API_KEY: '@tmdb_api_key',
   STREAM_PROVIDER: '@stream_provider',
+  STREAM_DISCLAIMER: '@stream_disclaimer_accepted',
   IPTV_PLAYLISTS: '@iptv_playlists',
   IPTV_CHANNELS: '@iptv_channels',
   IPTV_FAVORITES: '@iptv_favorites',
@@ -87,9 +90,10 @@ const parseStoredArray = <T,>(rawValue: string | null, isValid: (value: unknown)
 };
 
 export const SettingsProvider = ({ children }: { children: ReactNode }) => {
-  const [streamUrl, setStreamUrlState] = useState('https://player.videasy.net');
+  const [streamUrl, setStreamUrlState] = useState('');
   const [tmdbApiKey, setTmdbApiKeyState] = useState('');
-  const [streamProvider, setStreamProviderState] = useState('videasy');
+  const [streamProvider, setStreamProviderState] = useState('');
+  const [streamDisclaimerAccepted, setStreamDisclaimerAccepted] = useState(false);
   const [iptvPlaylists, setIptvPlaylists] = useState<IptvPlaylist[]>([IPTV_ORG_PLAYLIST]);
   const [iptvChannels, setIptvChannels] = useState<IptvChannel[]>([]);
   const [iptvFavorites, setIptvFavorites] = useState<IptvChannel[]>([]);
@@ -104,6 +108,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       const savedStreamUrl = await AsyncStorage.getItem(STORAGE_KEYS.STREAM_URL);
       const savedApiKey = await AsyncStorage.getItem(STORAGE_KEYS.TMDB_API_KEY);
       const savedProvider = await AsyncStorage.getItem(STORAGE_KEYS.STREAM_PROVIDER);
+      const savedDisclaimer = await AsyncStorage.getItem(STORAGE_KEYS.STREAM_DISCLAIMER);
       const savedIptvPlaylists = await AsyncStorage.getItem(STORAGE_KEYS.IPTV_PLAYLISTS);
       const savedIptvChannels = await AsyncStorage.getItem(STORAGE_KEYS.IPTV_CHANNELS);
       const savedIptvFavorites = await AsyncStorage.getItem(STORAGE_KEYS.IPTV_FAVORITES);
@@ -112,6 +117,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       if (savedStreamUrl) setStreamUrlState(savedStreamUrl);
       if (savedApiKey) setTmdbApiKeyState(savedApiKey);
       if (savedProvider) setStreamProviderState(savedProvider);
+      setStreamDisclaimerAccepted(savedDisclaimer === '1');
       setIptvPlaylists([
         IPTV_ORG_PLAYLIST,
         ...parseStoredArray(savedIptvPlaylists, isStoredPlaylist),
@@ -148,6 +154,15 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       setStreamProviderState(provider);
     } catch {
       // Ignore persistence failures
+    }
+  };
+
+  const acceptStreamDisclaimer = async () => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.STREAM_DISCLAIMER, '1');
+      setStreamDisclaimerAccepted(true);
+    } catch {
+      setStreamDisclaimerAccepted(true);
     }
   };
 
@@ -265,6 +280,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       streamUrl,
       tmdbApiKey,
       streamProvider,
+      streamDisclaimerAccepted,
       iptvPlaylists,
       iptvChannels,
       iptvFavorites,
@@ -272,6 +288,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       setStreamUrl,
       setTmdbApiKey,
       setStreamProvider,
+      acceptStreamDisclaimer,
       addIptvPlaylist,
       removeIptvPlaylist,
       addIptvChannel,

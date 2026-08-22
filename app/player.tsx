@@ -7,6 +7,7 @@ import {
 } from '@/constants/playerAdBlock';
 import { getStreamProvider } from '@/constants/streamProviders';
 import { useSettings } from '@/contexts/SettingsContext';
+import { isStreamPlaybackConfigured } from '@/utils/streamPlaybackGate';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { X } from 'lucide-react-native';
@@ -28,12 +29,17 @@ export default function PlayerScreen() {
   const season = params.season || '1';
   const episode = params.episode || '1';
 
-  const { streamUrl, streamProvider } = useSettings();
+  const { streamUrl, streamProvider, streamDisclaimerAccepted } = useSettings();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [controlsVisible, setControlsVisible] = useState(true);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isWeb = Platform.OS === 'web';
+  const playbackReady = isStreamPlaybackConfigured(
+    streamDisclaimerAccepted,
+    streamProvider,
+    streamUrl
+  );
 
   const showControls = useCallback(() => {
     setControlsVisible(true);
@@ -57,6 +63,8 @@ export default function PlayerScreen() {
   }, [isWeb]);
 
   const constructStreamUrl = () => {
+    if (!playbackReady) return '';
+
     const provider = getStreamProvider(streamProvider);
 
     if (provider && provider.id !== 'custom') {
@@ -90,6 +98,42 @@ export default function PlayerScreen() {
     paddingLeft: Math.max(insets.left, 12),
     paddingRight: Math.max(insets.right, 12),
   };
+
+  if (!playbackReady) {
+    return (
+      <View style={styles.container}>
+        <View style={[styles.header, headerPadding]}>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={handleClose}
+            activeOpacity={0.85}
+            accessibilityLabel="Close player"
+          >
+            <X size={20} color="#fff" />
+          </TouchableOpacity>
+          <View style={styles.headerInfo}>
+            <Text style={styles.title} numberOfLines={1}>
+              Stream not ready
+            </Text>
+          </View>
+        </View>
+        <View style={styles.blockedBody}>
+          <Text style={styles.blockedTitle}>Accept notice & choose a source</Text>
+          <Text style={styles.blockedText}>
+            Third-party embeds stay locked until you accept the stream notice and pick a provider
+            (or custom URL) in Settings.
+          </Text>
+          <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={() => router.replace('/(tabs)/settings')}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.settingsButtonText}>Open Settings</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View
@@ -213,5 +257,34 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     marginTop: 2,
+  },
+  blockedBody: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+    gap: 12,
+  },
+  blockedTitle: {
+    color: Colors.text,
+    fontSize: 16,
+    fontFamily: Fonts.GeistMono.SemiBold,
+  },
+  blockedText: {
+    color: Colors.textSecondary,
+    fontSize: 13,
+    fontFamily: Fonts.GeistMono.Regular,
+    lineHeight: 20,
+  },
+  settingsButton: {
+    marginTop: 8,
+    backgroundColor: '#fff',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  settingsButtonText: {
+    color: '#000',
+    fontSize: 14,
+    fontFamily: Fonts.GeistMono.Bold,
   },
 });

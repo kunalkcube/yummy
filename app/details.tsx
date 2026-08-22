@@ -3,8 +3,10 @@ import { SeasonsList } from '@/components/SeasonsList';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
+import { useSettings } from '@/contexts/SettingsContext';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { CastMember, Movie, useTMDB } from '@/hooks/useTMDB';
+import { ensureStreamPlaybackReady } from '@/utils/streamPlaybackGate';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AlertCircle, ArrowLeft, Film, Play, Star, Tv, User } from 'lucide-react-native';
@@ -32,6 +34,12 @@ interface Genre {
 export default function DetailsScreen() {
   const { id, type } = useLocalSearchParams<{ id: string; type: 'movie' | 'tv' }>();
   const { fetchDetails, fetchCredits, fetchRecommendations } = useTMDB();
+  const {
+    streamDisclaimerAccepted,
+    streamProvider,
+    streamUrl,
+    acceptStreamDisclaimer,
+  } = useSettings();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
@@ -80,9 +88,20 @@ export default function DetailsScreen() {
       params.episode = episode?.toString() || '1';
     }
 
-    router.push({
-      pathname: '/player',
-      params,
+    ensureStreamPlaybackReady({
+      streamDisclaimerAccepted,
+      streamProvider,
+      streamUrl,
+      acceptStreamDisclaimer,
+      openSettings: () => {
+        router.push('/(tabs)/settings');
+      },
+      onReady: () => {
+        router.push({
+          pathname: '/player',
+          params,
+        });
+      },
     });
   };
 

@@ -93,6 +93,7 @@ Desktop (Win / Linux / macOS) uses Tauri 2 wrapping the Expo web export. Require
 - Expo exposes only variables prefixed `EXPO_PUBLIC_` to the app bundle. These values are public at runtime; they must not contain secrets.
 - `EXPO_PUBLIC_MANGAPLUS_BASE_URL` is required by `useMangaPlus.ts` and must point to a compatible MangaPlus API service.
 - TMDB credentials are entered in Settings and stored in AsyncStorage — not read from env by product code.
+- Stream embeds: users must accept the third-party disclaimer (`@stream_disclaimer_accepted`) before providers unlock. Defaults are empty (no silent Videasy). Play is gated in `details` / `player` via `ensureStreamPlaybackReady`.
 - Privacy: Yummy has no backend. Device-local storage only; summary in Settings → About. IPTV streams and public manga APIs can change or block clients; guard parsing and preserve fallback/error UI.
 
 ## Release (personal APK / desktop)
