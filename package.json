@@ -11,6 +11,8 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "prebuild:android": "expo prebuild --platform android --no-install",
+    "android:apk": "cd android && gradlew.bat assembleRelease",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"
   },
@@ -52,6 +54,7 @@
     "@types/react": "~19.2.4",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~57.0.1",
+    "expo-build-properties": "^57.0.14",
     "typescript": "~6.0.3"
   },
   "overrides": {

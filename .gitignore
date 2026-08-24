@@ -43,7 +43,12 @@ app-example
 /ios
 /android
 
+*.jks
 *.keystore
+!debug.keystore
+credentials/android/keystore.properties
+credentials/android/*.keystore
+!credentials/android/keystore.properties.example
 
 # Tauri
 src-tauri/target/

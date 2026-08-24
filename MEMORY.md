@@ -161,7 +161,7 @@ Expo starter artifacts (themed components, `/modal`, `EmptyState`, debug helpers
 
 - Runtime: Expo SDK 57 / React Native 0.86 / React 19.2 / TypeScript 6.
 - Package manager: npm with committed `package-lock.json`.
-- Commands: `npm start`, `npm run android`, `npm run ios`, `npm run web`, `npm run lint`, `npm run reset-project`, `npm run tauri:dev`, `npm run tauri:build`.
+- Commands: `npm start`, `npm run android`, `npm run ios`, `npm run web`, `npm run lint`, `npm run reset-project`, `npm run prebuild:android`, `npm run android:apk`, `npm run tauri:dev`, `npm run tauri:build`.
 - Splash / Android adaptive icon background: `#000000`. New Architecture is required (SDK 55+); do not set `newArchEnabled` or `android.edgeToEdgeEnabled` in `app.json`.
 - TypeScript is strict; `@/*` resolves from the repo root.
 - ESLint: Expo flat config (`eslint-config-expo` ~57); ignores `dist/*`. `react-hooks/set-state-in-effect` is off for intentional screen fetch effects.
@@ -169,8 +169,9 @@ Expo starter artifacts (themed components, `/modal`, `EmptyState`, debug helpers
 - `useTMDB` methods are `useCallback`-stable so screen load effects do not re-fire every render.
 - Tauri 2: `@tauri-apps/cli` in devDependencies; `src-tauri/tauri.conf.json` uses `frontendDist: ../dist`, `devUrl: http://localhost:8081`, `beforeDevCommand: npx expo start --web`, `beforeBuildCommand: npx expo export -p web`. Desktop bundles land in `src-tauri/target/release/bundle/`.
 - `metro.config.js` must block `src-tauri/**` from Metro's watcher; otherwise `tauri:dev` crashes when cargo creates/deletes temp files under `target/debug/deps`.
-- No automated test framework or in-repo CI release pipeline; personal APKs via local/`expo run` or EAS when configured; desktop via `npm run tauri:build`. Keep keystores/signing credentials out of git.
-- Ignored: `dist/`, `.expo/`, `node_modules/`, `.env`, generated `/android` and `/ios`, `src-tauri/target/`, `src-tauri/gen/schemas`.
+- No automated test framework or in-repo CI release pipeline; personal APKs via disposable `android/` prebuild + `npm run android:apk`; desktop via `npm run tauri:build`. Keep keystores/signing credentials out of git.
+- Android release: `plugins/withAndroidRelease.js` + `expo-build-properties` (R8 minify, shrinkResources, ABI splits, NDK pin). Signing reads `credentials/android/release.keystore` + `keystore.properties` (gitignored); never under `android/app`. Scripts: `npm run prebuild:android`, `npm run android:apk`. APKs named `yummy-v{version}-{abi}-release.apk` (plus universal).
+- Ignored: `dist/`, `.expo/`, `node_modules/`, `.env`, generated `/android` and `/ios`, `credentials/android/*.keystore`, `credentials/android/keystore.properties`, `src-tauri/target/`, `src-tauri/gen/schemas`.
 - Active branch historically: `github`; `v2.0.0` is the initial release tag.
 
 ## Known Maintenance Risks
