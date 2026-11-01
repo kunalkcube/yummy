@@ -1,17 +1,20 @@
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
+import { CatalogPlayer } from '@/components/CatalogPlayer';
+import { DownloadSheet } from '@/components/DownloadSheet';
 import {
   PLAYER_AD_BLOCK_BEFORE_JS,
   PLAYER_AD_BLOCK_JS,
   shouldAllowPlayerRequest,
 } from '@/constants/playerAdBlock';
-import { getStreamProvider } from '@/constants/streamProviders';
+import { CATALOG_PROVIDER_ID, getStreamProvider } from '@/constants/streamProviders';
 import { useSettings } from '@/contexts/SettingsContext';
 import { isStreamPlaybackConfigured } from '@/utils/streamPlaybackGate';
+import { DownloadCaption, downloadsAvailable } from '@/utils/downloads';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
-import { X } from 'lucide-react-native';
-import { createElement, useCallback, useEffect, useRef, useState } from 'react';
+import { Download, X } from 'lucide-react-native';
+import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
@@ -23,22 +26,26 @@ export default function PlayerScreen() {
     title: string;
     season?: string;
     episode?: string;
+    posterPath?: string;
   }>();
 
   const { id, type, title } = params;
   const season = params.season || '1';
   const episode = params.episode || '1';
 
-  const { streamUrl, streamProvider, streamDisclaimerAccepted } = useSettings();
+  const { streamUrl, streamProvider, streamDisclaimerAccepted, catalogDomain } = useSettings();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [downloadSource, setDownloadSource] = useState<{ url: string; captions: DownloadCaption[] } | null>(null);
+  const [downloadOpen, setDownloadOpen] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isWeb = Platform.OS === 'web';
   const playbackReady = isStreamPlaybackConfigured(
     streamDisclaimerAccepted,
     streamProvider,
-    streamUrl
+    streamUrl,
+    catalogDomain
   );
 
   const showControls = useCallback(() => {
@@ -80,6 +87,20 @@ export default function PlayerScreen() {
       ? `${streamUrl}/movie/${id}`
       : `${streamUrl}/tv/${id}/${season}/${episode}`;
   };
+
+  const isCatalog = streamProvider === CATALOG_PROVIDER_ID;
+  const offlineSource = useMemo(() => downloadSource ? {
+    ...downloadSource,
+    id: `catalog_${id}_${type}_${season}_${episode}`.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 120),
+    title: type === 'tv' ? `${title} · S${season} E${episode}` : title,
+    referer: `${catalogDomain}/`,
+    posterUrl: params.posterPath ? `https://image.tmdb.org/t/p/w342${params.posterPath}` : undefined,
+    tmdbId: Number(id),
+    mediaType: type,
+    showTitle: type === 'tv' ? title : undefined,
+    season: type === 'tv' ? Number(season) : undefined,
+    episode: type === 'tv' ? Number(episode) : undefined,
+  } : null, [downloadSource, id, type, season, episode, title, catalogDomain, params.posterPath]);
 
   const handleClose = () => {
     router.back();
@@ -145,7 +166,17 @@ export default function PlayerScreen() {
           }
         : {})}
     >
-      {isWeb
+      {isCatalog ? (
+        <CatalogPlayer
+          title={title}
+          type={type}
+          season={season}
+          episode={episode}
+          baseUrl={catalogDomain}
+          tmdbId={Number(id)}
+          onDownloadSource={setDownloadSource}
+        />
+      ) : isWeb
         ? createElement('iframe', {
             src: streamLink,
             style: { width: '100%', height: '100%', border: 'none', backgroundColor: '#000' },
@@ -193,6 +224,12 @@ export default function PlayerScreen() {
               </Text>
             ) : null}
           </View>
+          {isCatalog && downloadsAvailable && downloadSource ? (
+            <TouchableOpacity style={styles.closeButton} onPress={() => setDownloadOpen(true)} activeOpacity={0.85}
+              accessibilityRole="button" accessibilityLabel="Download video">
+              <Download size={20} color={Colors.text} />
+            </TouchableOpacity>
+          ) : null}
         </View>
       ) : (
         <Pressable
@@ -201,6 +238,9 @@ export default function PlayerScreen() {
           accessibilityLabel="Show player controls"
         />
       )}
+      {downloadOpen && offlineSource && isCatalog ? (
+        <DownloadSheet source={offlineSource} onClose={() => setDownloadOpen(false)} />
+      ) : null}
     </View>
   );
 }

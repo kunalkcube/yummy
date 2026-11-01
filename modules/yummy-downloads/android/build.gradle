@@ -1,0 +1,31 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.yummydownloads'
+version = '1.0.0'
+
+android {
+  namespace 'expo.modules.yummydownloads'
+  testBuildType 'release'
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+    testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+  }
+}
+
+dependencies {
+  implementation 'com.facebook.react:react-android'
+  implementation 'androidx.media3:media3-exoplayer:1.8.0'
+  implementation 'androidx.media3:media3-exoplayer-hls:1.8.0'
+  implementation 'androidx.media3:media3-ui:1.8.0'
+  implementation 'androidx.media3:media3-database:1.8.0'
+  implementation 'androidx.media3:media3-datasource:1.8.0'
+  implementation 'androidx.core:core-ktx:1.16.0'
+  testImplementation 'junit:junit:4.13.2'
+  androidTestImplementation 'androidx.test:core:1.6.1'
+  androidTestImplementation 'androidx.test:runner:1.6.2'
+  androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+}

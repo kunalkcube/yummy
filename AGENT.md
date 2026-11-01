@@ -29,7 +29,7 @@ npm run tauri:dev
 npm run tauri:build
 ```
 
-There is currently no test runner or test script. Run `npm run lint` for every code change and use the most focused available validation (for example, `npx tsc --noEmit` for TypeScript changes). Do not start a long-running Expo server as a validation substitute.
+There is no JavaScript test runner or test script. Run `npm run lint` for every code change and use the most focused available validation (for example, `npx tsc --noEmit` for TypeScript changes). Native DNS tests: `./gradlew :yummy-tmdb-dns:testReleaseUnitTest` from `android/`. Do not start a long-running Expo server as a validation substitute.
 
 Android release APKs: `prebuild:android` regenerates disposable `android/`; `android:apk` runs `gradlew.bat assembleRelease` (Windows). Signing credentials stay in `credentials/android/` (never under `android/app`).
 
@@ -42,22 +42,29 @@ Desktop (Win / Linux / macOS) uses Tauri 2 wrapping the Expo web export. Require
 | `app/` | Expo Router screens and navigation layouts |
 | `app/(tabs)/` | Home, search, manga, and IPTV tabs |
 | `app/details.tsx`, `app/person.tsx` | TMDB detail screens |
-| `app/player.tsx` | Third-party streaming-provider player (WebView native / iframe web) |
+| `app/player.tsx` | Third-party streaming-provider player (embed WebView, or the native Catalog Service player) |
+| `components/CatalogPlayer.tsx` | Native Catalog Service playback: user-domain-origin WebView + hls.js + subtitles |
+| `hooks/useCatalog.ts` | Catalog Service API client: activation, search, details, episodes, stream resolution (built from the user's saved domain) |
+| `constants/catalog.ts` | Catalog Service endpoints, types, storage keys (service-agnostic; no hardcoded host or domain pool) |
 | `app/iptv-player.tsx` | Direct IPTV stream playback through Plyr |
 | `app/manga-details.tsx`, `app/manga-reader.tsx` | Manga metadata, chapters, and gesture-enabled reader |
 | `app/more.tsx` | More hub (My List, Watch History, Settings; add future links here) |
 | `app/my-list.tsx` | Full watchlist screen |
 | `app/watch-history.tsx` | Recently played titles (clear / per-item remove) |
-| `app/settings.tsx` | Stream provider, TMDB, IPTV config (via More or empty-state CTA) |
+| `app/settings.tsx` | Stream provider + disclaimer, Catalog Service domain/activation, TMDB, IPTV config (via More or empty-state CTA) |
 | `components/` | Shared media UI, `AppAlert`, and update prompt |
 | `contexts/SettingsContext.tsx` | Persisted TMDB, stream disclaimer/provider, IPTV playlist, favorite, and recent-channel state |
 | `contexts/LibraryContext.tsx` | Watchlist, continue watching, watch history, watched TV episodes (AsyncStorage) |
+| `modules/yummy-tmdb-dns/`, `utils/tmdbDns.ts` | Android-only Cloudflare DoH for TMDB API + images; local Expo module, optional JS bridge |
+| `modules/yummy-downloads/`, `utils/downloads.ts` | Android Media3 offline HLS downloads, selected tracks, foreground service, private cache, offline native view |
+| `app/downloads.tsx`, `app/download-player.tsx`, `components/DownloadSheet.tsx` | Download management, cache-only playback, and quality/audio/caption picker |
 | `hooks/useIptv.ts` | Validated M3U parsing and playlist loading |
 | `hooks/useTMDB.ts` | TMDB API client and shared media types |
 | `hooks/useVersionCheck.ts` | GitHub Release update check |
 | `constants/` | Colors, fonts, stream providers, TMDB provider filters, IPTV types |
 | `plugins/withAndroidRelease.js` | Disposable `android/` release: signing from `credentials/android/`, ABI splits, R8, NDK pin |
 | `utils/streamPlaybackGate.ts` | Stream disclaimer + provider gate before play |
+| `utils/catalogMatch.ts` | Pure catalog match verification: year / cast / director comparison for a search hit, plus hit ranking |
 | `assets/` | App icons, splash image, and bundled Geist Mono fonts |
 | `src-tauri/` | Tauri 2 desktop shell (Win / Linux / macOS) |
 
@@ -74,9 +81,11 @@ Desktop (Win / Linux / macOS) uses Tauri 2 wrapping the Expo web export. Require
 ### State and networking
 
 - Read and write app preferences only through `useSettings()`; it persists values in AsyncStorage.
+- Exception: `tmdbDnsEnabled` is exposed through `useSettings()` but persisted by the Android module in SharedPreferences (`yummy_tmdb_dns/enabled`) so it is applied before JS/API/image loading. Do not duplicate it in AsyncStorage. The module's lifecycle listener installs an OkHttp factory for API calls and React Native images; only the two TMDB hosts use DoH, with device DNS fallback. Keep normal TLS and the React cookie jar intact. A native rebuild is required after module changes.
 - Use `useTMDB()` for all TMDB calls (trending, popular, top-rated, upcoming, search, details, credits, recommendations, person, seasons). Do not reimplement bearer/API-key auth in screens.
 - Manga sources are MangaDex and AniList only (no MangaPlus).
 - IPTV playlist configuration, favorites, and recents belong in `useSettings()`. Validate M3U URLs and parsed channels before persisting or rendering them.
+- The Catalog Service is a native-only provider: the user saves their own service domain in Settings (`catalogDomain`), activation/session state lives in `useSettings()` (`catalogSession`), all API calls go through `useCatalog()`, and playback stays inside `components/CatalogPlayer.tsx` (WebView must load a real page on the user's own domain so CDN requests carry the required Referer). Do not attempt Catalog Service embeds via `constructUrl`.
 - Existing external calls generally handle failures by returning empty data or setting screen-local error state. Preserve that user-facing behavior when extending a screen.
 - Do not log credentials, bearer tokens, device secrets, full authorization headers, or raw sensitive API responses. Prefer silent failure / empty returns over debug logging in hooks.
 
@@ -89,6 +98,7 @@ Desktop (Win / Linux / macOS) uses Tauri 2 wrapping the Expo web export. Require
 - Do not import `@react-navigation/*` in app code (SDK 56+). Use `expo-router/react-navigation`, `expo-router/js-tabs`, etc.
 - TMDB clients expose stable `useCallback` fetchers. Screen loads use `useCallback` + `useEffect([loader])` (or a cancelable effect on Home); do not put unstable function identities in effect deps.
 - Keep screen-local `StyleSheet.create` styles and functional-component patterns unless extracting a genuinely shared component.
+- Android downloads: Media3 owns its native SQLite download index and private media cache; keep credentials/stream URLs out of logs and JS list results. Preserve the cache-only playback factory (no HTTP upstream), native track validation, and paired video/sidecar completion/removal. Source streams come from CatalogPlayer's existing same-origin resolution; do not extract downloads from arbitrary embedded webpages.
 - Alerts: use `AppAlert.alert(title, message?, buttons?)` from `components/AppAlert.tsx`. Do not use React Native `Alert`. The root layout mounts `AlertProvider`.
 
 ### IPTV playback
@@ -103,7 +113,7 @@ Desktop (Win / Linux / macOS) uses Tauri 2 wrapping the Expo web export. Require
 - Expo exposes only variables prefixed `EXPO_PUBLIC_` to the app bundle. These values are public at runtime; they must not contain secrets.
 - TMDB credentials are entered in Settings and stored in AsyncStorage — not read from env by product code.
 - Stream embeds: users must accept the third-party disclaimer (`@stream_disclaimer_accepted`) before providers unlock. Defaults are empty (no silent Videasy). Play is gated in `details` / `player` via `ensureStreamPlaybackReady`.
-- Privacy: Yummy has no backend. Device-local storage only; summary in Settings → About. IPTV streams and public manga APIs can change or block clients; guard parsing and preserve fallback/error UI.
+- Privacy: Yummy has no backend. Device-local storage only; summary in Settings → About. Optional Android TMDB DNS queries go to Cloudflare. IPTV streams and public manga APIs can change or block clients; guard parsing and preserve fallback/error UI.
 
 ## Release (personal APK / desktop)
 

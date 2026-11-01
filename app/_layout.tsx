@@ -64,6 +64,8 @@ export default function RootLayout() {
             <Stack.Screen name="my-list" options={{ headerShown: false }} />
             <Stack.Screen name="watch-history" options={{ headerShown: false }} />
             <Stack.Screen name="settings" options={{ headerShown: false }} />
+            <Stack.Screen name="downloads" options={{ headerShown: false }} />
+            <Stack.Screen name="download-player" options={{ headerShown: false }} />
           </Stack>
           <StatusBar style="light" />
           {updateInfo && (

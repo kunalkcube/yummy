@@ -1,4 +1,5 @@
 import { AppAlert } from '@/components/AppAlert';
+import { CATALOG_PROVIDER_ID } from '@/constants/streamProviders';
 import {
   STREAM_DISCLAIMER_MESSAGE,
   STREAM_DISCLAIMER_TITLE,
@@ -8,14 +9,21 @@ type GateOptions = {
   streamDisclaimerAccepted: boolean;
   streamProvider: string;
   streamUrl: string;
+  /** User-supplied service domain; required when the catalog provider is picked. */
+  catalogDomain: string;
   acceptStreamDisclaimer: () => Promise<void>;
   openSettings: () => void;
   onReady: () => void;
 };
 
-const hasConfiguredSource = (streamProvider: string, streamUrl: string) => {
+const hasConfiguredSource = (
+  streamProvider: string,
+  streamUrl: string,
+  catalogDomain: string
+) => {
   if (!streamProvider) return false;
   if (streamProvider === 'custom') return Boolean(streamUrl.trim());
+  if (streamProvider === CATALOG_PROVIDER_ID) return Boolean(catalogDomain.trim());
   return true;
 };
 
@@ -23,6 +31,20 @@ const promptChooseProvider = (openSettings: () => void) => {
   AppAlert.alert(
     'Choose a stream source',
     'Accept the third-party notice in Settings, then pick an embed provider or paste a custom URL.',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Open Settings',
+        onPress: openSettings,
+      },
+    ]
+  );
+};
+
+const promptCatalogDomain = (openSettings: () => void) => {
+  AppAlert.alert(
+    'Add your service domain',
+    'This source needs the domain of the OTT service you use. Add it in Settings under Catalog Service, then activate a session.',
     [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -41,12 +63,17 @@ export function ensureStreamPlaybackReady({
   streamDisclaimerAccepted,
   streamProvider,
   streamUrl,
+  catalogDomain,
   acceptStreamDisclaimer,
   openSettings,
   onReady,
 }: GateOptions) {
   const proceed = () => {
-    if (!hasConfiguredSource(streamProvider, streamUrl)) {
+    if (streamProvider === CATALOG_PROVIDER_ID && !catalogDomain.trim()) {
+      promptCatalogDomain(openSettings);
+      return;
+    }
+    if (!hasConfiguredSource(streamProvider, streamUrl, catalogDomain)) {
       promptChooseProvider(openSettings);
       return;
     }
@@ -75,7 +102,11 @@ export function ensureStreamPlaybackReady({
 export function isStreamPlaybackConfigured(
   streamDisclaimerAccepted: boolean,
   streamProvider: string,
-  streamUrl: string
+  streamUrl: string,
+  catalogDomain: string
 ) {
-  return streamDisclaimerAccepted && hasConfiguredSource(streamProvider, streamUrl);
+  return (
+    streamDisclaimerAccepted &&
+    hasConfiguredSource(streamProvider, streamUrl, catalogDomain)
+  );
 }

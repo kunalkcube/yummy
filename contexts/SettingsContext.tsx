@@ -1,21 +1,37 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { IPTV_ORG_PLAYLIST, IPTV_RECENT_CHANNEL_LIMIT, IptvChannel, IptvPlaylist } from '@/constants/iptv';
+import { CATALOG_STORAGE_KEYS, normalizeCatalogDomain } from '@/constants/catalog';
+import { getStreamProvider } from '@/constants/streamProviders';
 import { isIptvPlaylistUrl, isIptvStreamUrl } from '@/hooks/useIptv';
+import { applyTmdbDnsEnabled, getTmdbDnsEnabled } from '@/utils/tmdbDns';
 import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+
+export interface CatalogSession {
+  tHashT: string;
+  baseUrl: string;
+  setAt: number;
+}
 
 interface SettingsContextType {
   streamUrl: string;
   tmdbApiKey: string;
+  tmdbDnsEnabled: boolean;
   streamProvider: string;
   streamDisclaimerAccepted: boolean;
+  catalogDomain: string;
+  catalogSession: CatalogSession | null;
   iptvPlaylists: IptvPlaylist[];
   iptvChannels: IptvChannel[];
   iptvFavorites: IptvChannel[];
   iptvRecentChannels: IptvChannel[];
   setStreamUrl: (url: string) => Promise<void>;
   setTmdbApiKey: (key: string) => Promise<void>;
+  setTmdbDnsEnabled: (enabled: boolean) => Promise<void>;
   setStreamProvider: (provider: string) => Promise<void>;
   acceptStreamDisclaimer: () => Promise<void>;
+  setCatalogDomain: (domain: string) => Promise<void>;
+  saveCatalogSession: (session: CatalogSession) => Promise<void>;
+  clearCatalogSession: () => Promise<void>;
   addIptvPlaylist: (input: { name: string; url: string }) => Promise<void>;
   removeIptvPlaylist: (playlistId: string) => Promise<void>;
   addIptvChannel: (input: { name: string; url: string }) => Promise<void>;
@@ -35,6 +51,19 @@ const STORAGE_KEYS = {
   IPTV_CHANNELS: '@iptv_channels',
   IPTV_FAVORITES: '@iptv_favorites',
   IPTV_RECENTS: '@iptv_recent_channels',
+};
+const isStoredCatalogSession = (value: unknown): value is CatalogSession => {
+  if (!value || typeof value !== 'object') return false;
+
+  const session = value as Partial<CatalogSession>;
+  // tHashT may be empty when the platform only exposes the cookie jar; the
+  // session is still usable because requests fall back to that jar.
+  return (
+    typeof session.tHashT === 'string' &&
+    typeof session.baseUrl === 'string' &&
+    session.baseUrl.startsWith('https://') &&
+    typeof session.setAt === 'number'
+  );
 };
 
 const isStoredChannel = (value: unknown): value is IptvChannel => {
@@ -92,8 +121,11 @@ const parseStoredArray = <T,>(rawValue: string | null, isValid: (value: unknown)
 export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   const [streamUrl, setStreamUrlState] = useState('');
   const [tmdbApiKey, setTmdbApiKeyState] = useState('');
+  const [tmdbDnsEnabled, setTmdbDnsEnabledState] = useState(getTmdbDnsEnabled);
   const [streamProvider, setStreamProviderState] = useState('');
   const [streamDisclaimerAccepted, setStreamDisclaimerAccepted] = useState(false);
+  const [catalogDomain, setCatalogDomainState] = useState('');
+  const [catalogSession, setCatalogSession] = useState<CatalogSession | null>(null);
   const [iptvPlaylists, setIptvPlaylists] = useState<IptvPlaylist[]>([IPTV_ORG_PLAYLIST]);
   const [iptvChannels, setIptvChannels] = useState<IptvChannel[]>([]);
   const [iptvFavorites, setIptvFavorites] = useState<IptvChannel[]>([]);
@@ -113,11 +145,30 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       const savedIptvChannels = await AsyncStorage.getItem(STORAGE_KEYS.IPTV_CHANNELS);
       const savedIptvFavorites = await AsyncStorage.getItem(STORAGE_KEYS.IPTV_FAVORITES);
       const savedIptvRecents = await AsyncStorage.getItem(STORAGE_KEYS.IPTV_RECENTS);
+      const savedCatalogDomain = await AsyncStorage.getItem(CATALOG_STORAGE_KEYS.DOMAIN);
+      const savedCatalogSession = await AsyncStorage.getItem(CATALOG_STORAGE_KEYS.SESSION_SET);
 
       if (savedStreamUrl) setStreamUrlState(savedStreamUrl);
       if (savedApiKey) setTmdbApiKeyState(savedApiKey);
-      if (savedProvider) setStreamProviderState(savedProvider);
+      // Drop a provider id that no longer exists in STREAM_PROVIDERS, so a
+      // stale selection cannot leave the player on a dead source.
+      if (savedProvider && getStreamProvider(savedProvider)) {
+        setStreamProviderState(savedProvider);
+      } else if (savedProvider) {
+        void AsyncStorage.removeItem(STORAGE_KEYS.STREAM_PROVIDER);
+      }
       setStreamDisclaimerAccepted(savedDisclaimer === '1');
+      setCatalogDomainState(savedCatalogDomain ?? '');
+      if (savedCatalogSession) {
+        try {
+          const parsedSession = JSON.parse(savedCatalogSession);
+          if (isStoredCatalogSession(parsedSession)) {
+            setCatalogSession(parsedSession);
+          }
+        } catch {
+          // Ignore malformed session data
+        }
+      }
       setIptvPlaylists([
         IPTV_ORG_PLAYLIST,
         ...parseStoredArray(savedIptvPlaylists, isStoredPlaylist),
@@ -148,6 +199,11 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const setTmdbDnsEnabled = async (enabled: boolean) => {
+    await applyTmdbDnsEnabled(enabled);
+    setTmdbDnsEnabledState(enabled);
+  };
+
   const setStreamProvider = async (provider: string) => {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.STREAM_PROVIDER, provider);
@@ -164,6 +220,50 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     } catch {
       setStreamDisclaimerAccepted(true);
     }
+  };
+
+  /**
+   * Saving a new domain invalidates any session activated against the previous
+   * one, so a stale cookie can never be sent to a different host.
+   */
+  const setCatalogDomain = async (domain: string) => {
+    const normalized = normalizeCatalogDomain(domain);
+    if (!normalized) {
+      throw new Error('Enter a public HTTPS domain, for example example.com.');
+    }
+
+    if (normalized === catalogDomain) return;
+
+    try {
+      await AsyncStorage.setItem(CATALOG_STORAGE_KEYS.DOMAIN, normalized);
+      await AsyncStorage.removeItem(CATALOG_STORAGE_KEYS.SESSION_SET);
+    } catch {
+      // Ignore persistence failures
+    }
+
+    setCatalogDomainState(normalized);
+    setCatalogSession(null);
+  };
+
+  const saveCatalogSession = async (session: CatalogSession) => {
+    try {
+      await AsyncStorage.setItem(
+        CATALOG_STORAGE_KEYS.SESSION_SET,
+        JSON.stringify(session)
+      );
+      setCatalogSession(session);
+    } catch {
+      setCatalogSession(session);
+    }
+  };
+
+  const clearCatalogSession = async () => {
+    try {
+      await AsyncStorage.removeItem(CATALOG_STORAGE_KEYS.SESSION_SET);
+    } catch {
+      // Ignore persistence failures
+    }
+    setCatalogSession(null);
   };
 
   const addIptvPlaylist = async ({ name, url }: { name: string; url: string }) => {
@@ -279,16 +379,23 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     <SettingsContext.Provider value={{
       streamUrl,
       tmdbApiKey,
+      tmdbDnsEnabled,
       streamProvider,
       streamDisclaimerAccepted,
+      catalogDomain,
+      catalogSession,
       iptvPlaylists,
       iptvChannels,
       iptvFavorites,
       iptvRecentChannels,
       setStreamUrl,
       setTmdbApiKey,
+      setTmdbDnsEnabled,
       setStreamProvider,
       acceptStreamDisclaimer,
+      setCatalogDomain,
+      saveCatalogSession,
+      clearCatalogSession,
       addIptvPlaylist,
       removeIptvPlaylist,
       addIptvChannel,

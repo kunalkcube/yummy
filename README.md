@@ -2,7 +2,7 @@
 
 Personal media client for movies, TV, manga, and IPTV — built with React Native and Expo.
 
-**v2.2.0** · dark Netflix-inspired UI · no Yummy backend (everything stays on-device)
+**v2.3.0** · dark Netflix-inspired UI · no Yummy backend (everything stays on-device)
 
 <p align="center">
   <img src="docs/home.png" alt="Home" width="180" />
@@ -30,7 +30,10 @@ Personal media client for movies, TV, manga, and IPTV — built with React Nativ
 - Search the TMDB catalog
 - Details with cast, seasons/episodes, and recommendations
 - Person profiles and filmography
+- Android-only, one-tap Cloudflare DNS for TMDB requests and poster images
 - Play through configurable third-party embed providers (WebView) after accepting an on-device risk notice; real hostnames shown in Settings
+- Optional native **Catalog Service** provider: supply the domain of your own OTT service in Settings, activate a one-time session, and titles play through an in-app hls.js/Plyr player
+- Android **offline downloads** from Catalog Service: choose available resolution, audio language, and captions in the player; manage progress/pause/resume/delete under More → Downloads and play completed videos without a connection
 - Watch history, continue watching, and per-episode watched checkmarks for TV (auto-advances to the next episode)
 - In-player ad blocking (host blocklist + DOM/popup cleanup)
 
@@ -48,7 +51,7 @@ Personal media client for movies, TV, manga, and IPTV — built with React Nativ
 - Custom tab bar and quiet dark chrome (Geist Mono)
 - More hub (⋯) for My List, Watch History, and Settings — room to grow
 - GitHub Releases update alert
-- Privacy-first: AsyncStorage only — no Yummy server
+- Privacy-first: device-local settings and library — no Yummy server
 
 ## Stack
 
@@ -86,6 +89,10 @@ npm run ios
 
 Then open **More** (⋯ on Home) → **Settings**, accept the stream notice if you use embeds, paste your TMDB API key or bearer token, and pick a stream provider.
 
+## Catalog Service
+
+The **Catalog Service** provider is service-agnostic: Yummy ships no streaming domain. Under **Settings → Catalog Service**, enter the domain of the OTT service you use (a public HTTPS host) and save it, then tap **Activate**. Activation opens your service's verification page in a browser for ~30 seconds; once it confirms, the session unlocks the catalog for ~12 hours and the native player handles playback (Android/iOS only — web and desktop show a "native playback required" message). Changing the domain clears the saved session, so re-activate after a change.
+
 ## IPTV
 
 The IPTV tab ships with the category-grouped [iptv-org playlist](https://iptv-org.github.io/iptv/index.category.m3u).
@@ -94,15 +101,23 @@ The IPTV tab ships with the category-grouped [iptv-org playlist](https://iptv-or
 - Add single channels under **Settings → IPTV Channels**
 - Streams must allow direct browser playback — DRM, auth-walled, or offline feeds will not play
 
+## Offline downloads (Android)
+
+With **Catalog Service** selected, tap the compact download icon beside **Watch Now**, on a TV episode, or in the player header. Choose from the source's available resolution/audio/caption tracks, then tap **Download video**. Downloading from a detail/episode action does not mark it watched. **More → Downloads** shows poster artwork, All / In progress / Ready filters, progress, pause/resume/cancel controls, and **Play offline** for complete videos. A video is only ready after its selected captions are saved too. Notifications identify the actual movie or episode being saved.
+
+Downloads use a foreground service and private app storage. Poster artwork is also saved locally; older downloads fill in missing artwork when online. They survive app restarts, can be deleted individually, and are removed if Yummy is uninstalled. Offline playback has no network fallback. This first version supports finite HLS videos exposed by Catalog Service; embedded webpage providers and live IPTV are not download sources.
+
 ## DNS
 
-Some networks block TMDB. Use Cloudflare DNS if requests fail:
+If TMDB fails to load because of your network's DNS, open **Settings → General → Connection** in an Android build and enable **Use Cloudflare DNS for TMDB**. It applies immediately to discovery and poster images inside Yummy, and stays enabled after restarting. No root, VPN setup, or changes to Android settings are needed.
 
-**Android:** Settings → Network → Private DNS → `one.one.one.one`
+The option is off by default. It uses Cloudflare DNS-over-HTTPS for `api.themoviedb.org` and `image.tmdb.org`; if Cloudflare cannot resolve a name, it tries device DNS. It cannot fix every network restriction. Use **Test connection** in General to check TMDB access.
+
+This requires a native Android build; Expo Go, iOS, web, and desktop use their existing DNS. For device-wide Cloudflare DNS, Android also supports Settings → Network → Private DNS → `one.one.one.one`.
 
 ## Privacy
 
-Yummy has **no backend**. TMDB credentials, IPTV playlists/channels, favorites, and stream-disclaimer acceptance stay on this device (AsyncStorage). Network traffic goes only to the third-party APIs you use (TMDB, IPTV playlists, manga sources, stream embeds).
+Yummy has **no backend**. TMDB credentials, IPTV playlists/channels, favorites, and stream-disclaimer acceptance stay on this device (AsyncStorage). The Android DNS flag stays in native SharedPreferences so it can be applied before networking starts. Offline media and its Media3 index stay in private app storage. Network traffic goes to the third-party APIs you use (TMDB, IPTV playlists, manga sources, stream embeds and download sources), plus Cloudflare for TMDB DNS lookups when enabled.
 
 ## Commands
 
@@ -112,6 +127,8 @@ Yummy has **no backend**. TMDB credentials, IPTV playlists/channels, favorites, 
 | `npm run android` / `ios` / `web` | Platform targets |
 | `npm run lint` | ESLint |
 | `npx tsc --noEmit` | Typecheck |
+| `./gradlew :yummy-tmdb-dns:testReleaseUnitTest` (from `android/`) | Native TMDB DNS resolver tests |
+| `./gradlew :yummy-downloads:connectedReleaseAndroidTest` (from `android/`) | Download/track-selection/cache-only playback tests on a connected Android device (public sample media) |
 
 ---
 

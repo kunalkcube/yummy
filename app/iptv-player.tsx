@@ -57,6 +57,11 @@ const buildIptvPlayerHtml = (streamUrl: string, channelName: string) => {
       }
       html, body, #app, .plyr { width: 100%; height: 100%; margin: 0; background: #000; }
       video { width: 100%; height: 100%; }
+      /* Plyr menus open upward with no height cap; long caption lists run off
+         the top of the screen. Cap the height and scroll instead. */
+      .plyr__menu__container { max-height: calc(100vh - 180px) !important; }
+      .plyr__menu__container > div { max-height: calc(100vh - 180px) !important; overflow-y: auto !important; -webkit-overflow-scrolling: touch; }
+      .plyr__menu__container [role=menu] { overscroll-behavior: contain; }
     </style>
   </head>
   <body>

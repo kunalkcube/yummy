@@ -1,0 +1,4 @@
+<resources>
+  <string name="yummy_download_channel">Offline downloads</string>
+  <string name="yummy_download_channel_description">Video download progress</string>
+</resources>

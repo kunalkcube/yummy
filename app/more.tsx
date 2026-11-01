@@ -2,8 +2,8 @@ import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Bookmark, ChevronRight, Clock, Settings } from 'lucide-react-native';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ArrowLeft, Bookmark, ChevronRight, Clock, Download, Settings } from 'lucide-react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const LINKS = [
@@ -20,6 +20,13 @@ const LINKS = [
     hint: 'Recently played titles',
     Icon: Clock,
     href: '/watch-history' as const,
+  },
+  {
+    key: 'downloads',
+    label: 'Downloads',
+    hint: 'Videos saved for offline playback',
+    Icon: Download,
+    href: '/downloads' as const,
   },
   {
     key: 'settings',
@@ -59,7 +66,7 @@ export default function MoreScreen() {
         </View>
 
         <View style={styles.list}>
-          {LINKS.map(({ key, label, hint, Icon, href }) => (
+          {LINKS.filter((link) => link.key !== 'downloads' || Platform.OS === 'android').map(({ key, label, hint, Icon, href }) => (
             <TouchableOpacity
               key={key}
               style={styles.row}

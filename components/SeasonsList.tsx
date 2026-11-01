@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
 import { Episode, Season, useTMDB } from '@/hooks/useTMDB';
-import { Check, ChevronDown, ChevronUp, PlayCircle } from 'lucide-react-native';
+import { Check, ChevronDown, ChevronUp, Download, PlayCircle } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { ActivityIndicator, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -12,6 +12,8 @@ interface SeasonsListProps {
   onEpisodePress: (season: number, episode: number) => void;
   isEpisodeWatched?: (season: number, episode: number) => boolean;
   onToggleEpisodeWatched?: (season: number, episode: number) => void;
+  onDownloadEpisode?: (season: number, episode: number) => void;
+  downloadBusy?: boolean;
 }
 
 export const SeasonsList = ({
@@ -21,6 +23,8 @@ export const SeasonsList = ({
   onEpisodePress,
   isEpisodeWatched,
   onToggleEpisodeWatched,
+  onDownloadEpisode,
+  downloadBusy = false,
 }: SeasonsListProps) => {
   const [expandedSeason, setExpandedSeason] = useState<number | null>(null);
   const [seasonEpisodes, setSeasonEpisodes] = useState<{ [key: number]: Episode[] }>({});
@@ -104,7 +108,13 @@ export const SeasonsList = ({
           >
             <PlayCircle size={28} color={Colors.accent} />
           </TouchableOpacity>
-          {onToggleEpisodeWatched ? (
+          {onDownloadEpisode ? (
+            <TouchableOpacity style={styles.downloadButton} onPress={() => onDownloadEpisode(seasonNumber, episode.episode_number)}
+              disabled={downloadBusy} activeOpacity={0.85} accessibilityRole="button"
+              accessibilityState={{ disabled: downloadBusy }} accessibilityLabel={`Download episode ${episode.episode_number}`}>
+              <Download size={19} color={downloadBusy ? Colors.textSecondary : Colors.text} />
+            </TouchableOpacity>
+          ) : onToggleEpisodeWatched ? (
             <TouchableOpacity
               style={[styles.checkButton, watched && styles.checkButtonWatched]}
               onPress={() => onToggleEpisodeWatched(seasonNumber, episode.episode_number)}
@@ -283,6 +293,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  downloadButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
   checkButtonWatched: {
     backgroundColor: Colors.accent,
     borderColor: Colors.accent,

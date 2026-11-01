@@ -41,9 +41,11 @@ export default function HomeScreen() {
   const { continueWatching, removeContinueWatching, recordContinueWatching } =
     useLibrary();
   const {
+    tmdbDnsEnabled,
     streamDisclaimerAccepted,
     streamProvider,
     streamUrl,
+    catalogDomain,
     acceptStreamDisclaimer,
   } = useSettings();
   const router = useRouter();
@@ -59,6 +61,7 @@ export default function HomeScreen() {
   const [upcomingMovies, setUpcomingMovies] = useState<Movie[]>([]);
   const [featuredMovie, setFeaturedMovie] = useState<Movie | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const openMore = () => {
     router.push('/more');
@@ -78,35 +81,42 @@ export default function HomeScreen() {
       }
 
       setLoading(true);
+      setTrending([]);
+      setPopularMovies([]);
+      setPopularTV([]);
+      setTopRatedMovies([]);
+      setUpcomingMovies([]);
+      setFeaturedMovie(null);
+
+      const loadRow = async (request: Promise<Movie[]>, onLoaded: (movies: Movie[]) => void) => {
+        const movies = await request;
+        if (cancelled) return;
+        onLoaded(movies);
+        if (movies.length > 0) setLoading(false);
+      };
+
+      const showPopularMovies = (movies: Movie[]) => {
+        setPopularMovies(movies);
+        setFeaturedMovie((current) => current ?? movies[0] ?? null);
+      };
 
       try {
         if (selectedProvider) {
-          const [moviesData, tvData] = await Promise.all([
-            fetchPopular('movie', selectedProvider),
-            fetchPopular('tv', selectedProvider),
+          await Promise.all([
+            loadRow(fetchPopular('movie', selectedProvider), showPopularMovies),
+            loadRow(fetchPopular('tv', selectedProvider), setPopularTV),
           ]);
-          if (cancelled) return;
-          setTrending([]);
-          setPopularMovies(moviesData);
-          setPopularTV(tvData);
-          setTopRatedMovies([]);
-          setUpcomingMovies([]);
-          setFeaturedMovie(moviesData[0] || null);
         } else {
-          const [trendingData, moviesData, tvData, topRatedData, upcomingData] = await Promise.all([
-            fetchTrending(),
-            fetchPopular('movie'),
-            fetchPopular('tv'),
-            fetchTopRated('movie'),
-            fetchUpcoming(),
+          await Promise.all([
+            loadRow(fetchTrending(), (movies) => {
+              setTrending(movies);
+              if (movies[0]) setFeaturedMovie(movies[0]);
+            }),
+            loadRow(fetchPopular('movie'), showPopularMovies),
+            loadRow(fetchPopular('tv'), setPopularTV),
+            loadRow(fetchTopRated('movie'), setTopRatedMovies),
+            loadRow(fetchUpcoming(), setUpcomingMovies),
           ]);
-          if (cancelled) return;
-          setTrending(trendingData);
-          setPopularMovies(moviesData);
-          setPopularTV(tvData);
-          setTopRatedMovies(topRatedData);
-          setUpcomingMovies(upcomingData);
-          setFeaturedMovie(trendingData[0] || moviesData[0] || null);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -118,7 +128,9 @@ export default function HomeScreen() {
     };
   }, [
     tmdbApiKey,
+    tmdbDnsEnabled,
     selectedProvider,
+    reloadKey,
     fetchPopular,
     fetchTrending,
     fetchTopRated,
@@ -140,6 +152,7 @@ export default function HomeScreen() {
       id: String(item.id),
       type: item.type,
       title: item.title,
+      posterPath: item.posterPath ?? '',
     };
     if (item.type === 'tv') {
       params.season = String(item.season ?? 1);
@@ -150,6 +163,7 @@ export default function HomeScreen() {
       streamDisclaimerAccepted,
       streamProvider,
       streamUrl,
+      catalogDomain,
       acceptStreamDisclaimer,
       openSettings,
       onReady: () => {
@@ -187,6 +201,7 @@ export default function HomeScreen() {
       id: String(featuredMovie.id),
       type,
       title,
+      posterPath: featuredMovie.poster_path ?? '',
     };
     if (type === 'tv') {
       params.season = '1';
@@ -197,6 +212,7 @@ export default function HomeScreen() {
       streamDisclaimerAccepted,
       streamProvider,
       streamUrl,
+      catalogDomain,
       acceptStreamDisclaimer,
       openSettings,
       onReady: () => {
@@ -224,21 +240,25 @@ export default function HomeScreen() {
     : null;
   const heroLabel = selectedProvider ? getProviderName()?.toUpperCase() : 'TRENDING';
 
+  const topBar = (
+    <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
+      <Text style={styles.topBarWordmark}>YUMMY</Text>
+      <TouchableOpacity
+        onPress={openMore}
+        style={styles.moreButton}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        accessibilityRole="button"
+        accessibilityLabel="Open more"
+      >
+        <EllipsisVertical size={22} color={Colors.text} />
+      </TouchableOpacity>
+    </View>
+  );
+
   if (!tmdbApiKey) {
     return (
       <ScreenContainer style={styles.container}>
-        <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
-          <Text style={styles.topBarWordmark}>YUMMY</Text>
-          <TouchableOpacity
-            onPress={openMore}
-            style={styles.moreButton}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityRole="button"
-            accessibilityLabel="Open more"
-          >
-            <EllipsisVertical size={22} color={Colors.text} />
-          </TouchableOpacity>
-        </View>
+        {topBar}
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyLabel}>YUMMY</Text>
           <Text style={styles.emptyText}>
@@ -259,6 +279,7 @@ export default function HomeScreen() {
   if (loading) {
     return (
       <ScreenContainer style={styles.container}>
+        {topBar}
         <View style={styles.emptyContainer}>
           <ActivityIndicator size="large" color={Colors.accent} />
           <Text style={styles.loadingText}>Loading content...</Text>
@@ -270,20 +291,7 @@ export default function HomeScreen() {
   return (
     <ScreenContainer style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {!featuredMovie && (
-          <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
-            <Text style={styles.topBarWordmark}>YUMMY</Text>
-            <TouchableOpacity
-              onPress={openMore}
-              style={styles.moreButton}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              accessibilityRole="button"
-              accessibilityLabel="Open more"
-            >
-              <EllipsisVertical size={22} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
-        )}
+        {!featuredMovie && topBar}
 
         {featuredMovie && (
           <View style={[styles.heroSection, { height: heroHeight }]}>
@@ -413,13 +421,23 @@ export default function HomeScreen() {
         {trending.length === 0 &&
           popularMovies.length === 0 &&
           popularTV.length === 0 &&
+          topRatedMovies.length === 0 &&
+          upcomingMovies.length === 0 &&
           !loading && (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>
                 {selectedProvider
                   ? `No content found for ${getProviderName()}`
-                  : 'No content loaded. Check console for errors.'}
+                  : 'Could not load TMDB. Check your connection or DNS settings, then try again.'}
               </Text>
+              <TouchableOpacity
+                style={styles.emptyCta}
+                onPress={() => setReloadKey((current) => current + 1)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+              >
+                <Text style={styles.emptyCtaText}>Try again</Text>
+              </TouchableOpacity>
             </View>
           )}
 

@@ -42,12 +42,16 @@ app-example
 # generated native folders
 /ios
 /android
+/modules/*/android/build/
+/modules/*/android/.gradle/
 
 *.jks
 *.keystore
 !debug.keystore
 credentials/android/keystore.properties
 credentials/android/*.keystore
+# Backups/variants (keystore.properties.bak-*, .old, ...) may hold real passwords.
+credentials/android/keystore.properties.*
 !credentials/android/keystore.properties.example
 
 # Tauri
@@ -55,3 +59,7 @@ src-tauri/target/
 src-tauri/gen/schemas
 
 .vscode/
+.agents/
+
+# local agent docs
+/context/

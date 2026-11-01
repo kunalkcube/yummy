@@ -1,4 +1,5 @@
 import { useSettings } from '@/contexts/SettingsContext';
+import { CatalogMatchCriteria, parseMatchYear } from '@/utils/catalogMatch';
 import axios from 'axios';
 import { useCallback } from 'react';
 
@@ -76,6 +77,7 @@ const isBearerToken = (key: string): boolean =>
 const getAxiosConfig = (tmdbApiKey: string, params?: Record<string, unknown>) => {
   if (isBearerToken(tmdbApiKey)) {
     return {
+      timeout: 15_000,
       headers: {
         accept: 'application/json',
         Authorization: `Bearer ${tmdbApiKey}`,
@@ -85,6 +87,7 @@ const getAxiosConfig = (tmdbApiKey: string, params?: Record<string, unknown>) =>
   }
 
   return {
+    timeout: 15_000,
     params: { ...params, api_key: tmdbApiKey },
   };
 };
@@ -208,6 +211,67 @@ export const useTMDB = () => {
     [tmdbApiKey]
   );
 
+  /**
+   * Metadata used to confirm a catalog search hit: release year, the top-billed
+   * cast, and the movie's director (or the series' creators). Both TMDB calls
+   * run in parallel because this happens on the playback path, and a failure in
+   * either degrades to whatever the other returned.
+   */
+  const fetchMatchCriteria = useCallback(
+    async (id: number, type: 'movie' | 'tv'): Promise<CatalogMatchCriteria> => {
+      // No key (or no id) means nothing to compare — skip the requests entirely
+      // and let the caller show "Match unchecked".
+      if (!tmdbApiKey || !Number.isFinite(id)) return {};
+
+      const criteria: CatalogMatchCriteria = { year: null };
+
+      const [detailsResult, creditsResult] = await Promise.all([
+        axios
+          .get(`${TMDB_BASE_URL}/${type}/${id}`, getAxiosConfig(tmdbApiKey))
+          .catch(() => null),
+        axios
+          .get(`${TMDB_BASE_URL}/${type}/${id}/credits`, getAxiosConfig(tmdbApiKey))
+          .catch(() => null),
+      ]);
+
+      const details = detailsResult?.data;
+      if (details) {
+        criteria.year =
+          parseMatchYear(type === 'movie' ? details.release_date : details.first_air_date) ??
+          null;
+
+        if (type === 'tv' && Array.isArray(details.created_by)) {
+          const creators = details.created_by
+            .map((entry: { name?: string }) => entry?.name)
+            .filter((name: unknown): name is string => typeof name === 'string');
+          if (creators.length > 0) criteria.directorNames = creators;
+        }
+      }
+
+      const credits = creditsResult?.data;
+      if (credits) {
+        if (Array.isArray(credits.cast)) {
+          const cast = credits.cast
+            .slice(0, 8)
+            .map((entry: { name?: string }) => entry?.name)
+            .filter((name: unknown): name is string => typeof name === 'string');
+          if (cast.length > 0) criteria.castNames = cast;
+        }
+
+        if (type === 'movie' && Array.isArray(credits.crew)) {
+          const directors = credits.crew
+            .filter((entry: { job?: string }) => entry?.job === 'Director')
+            .map((entry: { name?: string }) => entry?.name)
+            .filter((name: unknown): name is string => typeof name === 'string');
+          if (directors.length > 0) criteria.directorNames = directors;
+        }
+      }
+
+      return criteria;
+    },
+    [tmdbApiKey]
+  );
+
   const fetchRecommendations = useCallback(
     async (id: number, type: 'movie' | 'tv'): Promise<Movie[]> => {
       if (!tmdbApiKey) return [];
@@ -281,6 +345,7 @@ export const useTMDB = () => {
     searchContent,
     fetchDetails,
     fetchCredits,
+    fetchMatchCriteria,
     fetchRecommendations,
     fetchPersonDetails,
     fetchPersonCredits,

@@ -10,7 +10,23 @@ export interface StreamProvider {
   }) => string;
 }
 
+/**
+ * Catalog service provider.
+ *
+ * Ships with no service name or domain: the user supplies the domain in
+ * Settings and activates a session against it. `baseUrl` stays empty so
+ * nothing service-specific is bundled; the player resolves the origin from
+ * settings at runtime.
+ */
+export const CATALOG_PROVIDER_ID = 'catalog';
+
 export const STREAM_PROVIDERS: StreamProvider[] = [
+  {
+    id: CATALOG_PROVIDER_ID,
+    name: 'Catalog Service',
+    baseUrl: '',
+    constructUrl: () => '',
+  },
   {
     id: 'videasy',
     name: 'Videasy',

@@ -1,5 +1,7 @@
 import { HorizontalScrollRow } from '@/components/HorizontalScrollRow';
 import { SeasonsList } from '@/components/SeasonsList';
+import { AppAlert } from '@/components/AppAlert';
+import { DownloadSheet } from '@/components/DownloadSheet';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
@@ -7,12 +9,15 @@ import { LibraryMediaType, getFirstUnwatchedEpisode } from '@/constants/library'
 import { useLibrary } from '@/contexts/LibraryContext';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
+import { useCatalog } from '@/hooks/useCatalog';
+import { CATALOG_PROVIDER_ID } from '@/constants/streamProviders';
+import { DownloadSource, downloadsAvailable } from '@/utils/downloads';
 import { CastMember, Movie, useTMDB } from '@/hooks/useTMDB';
 import { ensureStreamPlaybackReady } from '@/utils/streamPlaybackGate';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { AlertCircle, ArrowLeft, Bookmark, Check, Film, Play, Star, Tv, User } from 'lucide-react-native';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { AlertCircle, ArrowLeft, Bookmark, Check, Download, Film, Play, Star, Tv, User } from 'lucide-react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -37,11 +42,13 @@ export default function DetailsScreen() {
   const { id, type } = useLocalSearchParams<{ id: string; type: 'movie' | 'tv' }>();
   const mediaType = (type === 'tv' ? 'tv' : 'movie') as LibraryMediaType;
   const numericId = Number(id);
-  const { fetchDetails, fetchCredits, fetchRecommendations } = useTMDB();
+  const { fetchDetails, fetchCredits, fetchRecommendations, fetchMatchCriteria } = useTMDB();
+  const { isActive: catalogActive, isSessionFresh, resolvePlaybackTarget, resolveStream } = useCatalog();
   const {
     streamDisclaimerAccepted,
     streamProvider,
     streamUrl,
+    catalogDomain,
     acceptStreamDisclaimer,
   } = useSettings();
   const {
@@ -68,6 +75,16 @@ export default function DetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [showAllCast, setShowAllCast] = useState(false);
   const [showAllRecommendations, setShowAllRecommendations] = useState(false);
+  const [downloadSource, setDownloadSource] = useState<DownloadSource | null>(null);
+  const [preparingDownload, setPreparingDownload] = useState(false);
+  const downloadRequest = useRef(0);
+  const canDownload = downloadsAvailable && streamProvider === CATALOG_PROVIDER_ID;
+
+  useFocusEffect(useCallback(() => () => {
+    downloadRequest.current += 1;
+    setPreparingDownload(false);
+    setDownloadSource(null);
+  }, []));
 
   const savedInWatchlist = isInWatchlist(numericId, mediaType);
   const movieWatched =
@@ -122,12 +139,52 @@ export default function DetailsScreen() {
     void loadDetails();
   }, [loadDetails]);
 
-  const handleWatchNow = (season?: number, episode?: number) => {
+  const prepareOffline = async (title: string, season?: number, episode?: number) => {
+    if (preparingDownload || !canDownload || !details) return;
+    if (!catalogActive || !isSessionFresh) {
+      AppAlert.alert('Activate Catalog Service', 'Activate your source in Settings before downloading.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => router.push('/settings') },
+      ]);
+      return;
+    }
+    const request = ++downloadRequest.current;
+    setPreparingDownload(true);
+    try {
+      const criteria = await fetchMatchCriteria(numericId, mediaType);
+      const target = await resolvePlaybackTarget({ title, type: mediaType, season, episode, criteria });
+      if (request !== downloadRequest.current) return;
+      if (!target) throw new Error('This title could not be found in your source.');
+      const stream = await resolveStream(target.playbackId, target.ott);
+      if (request !== downloadRequest.current) return;
+      if (!stream) throw new Error('The source did not return a downloadable stream.');
+      setDownloadSource({
+        id: `catalog_${id}_${mediaType}_${season ?? 1}_${episode ?? 1}`,
+        title: mediaType === 'tv' ? `${title} · S${season ?? 1} E${episode ?? 1}` : title,
+        url: stream.masterUrl,
+        referer: `${catalogDomain}/`,
+        captions: stream.subtitles,
+        posterUrl: details.poster_path ? `https://image.tmdb.org/t/p/w342${details.poster_path}` : undefined,
+        tmdbId: numericId,
+        mediaType,
+        showTitle: mediaType === 'tv' ? title : undefined,
+        season,
+        episode,
+      });
+    } catch (error) {
+      if (request === downloadRequest.current) AppAlert.alert('Download unavailable', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      if (request === downloadRequest.current) setPreparingDownload(false);
+    }
+  };
+
+  const handleWatchNow = (season?: number, episode?: number, offline = false) => {
     const title = details?.title || details?.name || 'Unknown';
     const params: Record<string, string> = {
       id: String(id),
       type: String(type),
       title,
+      posterPath: details?.poster_path ?? '',
     };
 
     const playSeason =
@@ -148,11 +205,13 @@ export default function DetailsScreen() {
       streamDisclaimerAccepted,
       streamProvider,
       streamUrl,
+      catalogDomain,
       acceptStreamDisclaimer,
       openSettings: () => {
         router.push('/settings');
       },
       onReady: () => {
+        if (offline) { void prepareOffline(title, playSeason, playEpisode); return; }
         if (details && Number.isFinite(numericId)) {
           void recordContinueWatching({
             id: numericId,
@@ -439,10 +498,13 @@ export default function DetailsScreen() {
             </View>
           )}
 
+          <View style={styles.watchActions}>
           <TouchableOpacity
             style={styles.watchButton}
             onPress={() => handleWatchNow()}
             activeOpacity={0.85}
+            disabled={preparingDownload}
+            accessibilityRole="button"
           >
             <Play size={18} color="#000" fill="#000" />
             <Text style={styles.watchButtonText}>
@@ -451,6 +513,14 @@ export default function DetailsScreen() {
                 : 'Watch Now'}
             </Text>
           </TouchableOpacity>
+          {canDownload && (
+            <TouchableOpacity style={styles.downloadButton} onPress={() => handleWatchNow(undefined, undefined, true)}
+              disabled={preparingDownload} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Download video"
+              accessibilityState={{ disabled: preparingDownload, busy: preparingDownload }}>
+              {preparingDownload ? <ActivityIndicator size="small" color={Colors.text} /> : <Download size={20} color={Colors.text} />}
+            </TouchableOpacity>
+          )}
+          </View>
 
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Overview</Text>
@@ -500,6 +570,8 @@ export default function DetailsScreen() {
                   isEpisodeWatched(numericId, season, episode)
                 }
                 onToggleEpisodeWatched={handleToggleEpisodeWatched}
+                onDownloadEpisode={canDownload ? (season, episode) => handleWatchNow(season, episode, true) : undefined}
+                downloadBusy={preparingDownload}
               />
             </View>
           )}
@@ -547,6 +619,7 @@ export default function DetailsScreen() {
           <View style={styles.bottomSpacer} />
         </View>
       </ScrollView>
+      {downloadSource && <DownloadSheet source={downloadSource} onClose={() => setDownloadSource(null)} />}
     </ScreenContainer>
   );
 }
@@ -717,6 +790,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.GeistMono.Medium,
   },
   watchButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -724,8 +798,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 8,
     gap: 8,
-    marginBottom: 28,
   },
+  watchActions: { flexDirection: 'row', alignItems: 'stretch', gap: 10, marginBottom: 28 },
+  downloadButton: { width: 48, minHeight: 48, borderRadius: 8, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
   watchButtonText: {
     color: '#000',
     fontSize: 15,
