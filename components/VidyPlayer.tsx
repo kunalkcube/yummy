@@ -284,6 +284,24 @@ const buildVidyPlayerScript = (options: {
     );
   };
 
+  // Transient in-player notice (non-fatal outcomes keep the stream playing).
+  var notice = function (message) {
+    post({ type: 'status', message: message });
+    try {
+      var host = document.getElementById('yummy-notice');
+      if (!host) {
+        host = document.createElement('div');
+        host.id = 'yummy-notice';
+        host.style.cssText = 'position:fixed;top:12%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);border:1px solid #333;border-radius:8px;padding:10px 16px;color:#fff;font:13px "SFMono-Regular",Menlo,Consolas,monospace;z-index:9999;pointer-events:none;transition:opacity .3s;opacity:0;';
+        document.body.appendChild(host);
+      }
+      host.textContent = message;
+      host.style.opacity = '1';
+      clearTimeout(host.__hideTimer);
+      host.__hideTimer = setTimeout(function () { host.style.opacity = '0'; }, 4000);
+    } catch (_) {}
+  };
+
   status('Resolving stream...');
 
   var state = {
@@ -294,19 +312,27 @@ const buildVidyPlayerScript = (options: {
     sourceIndex: 0,
     pendingTracks: [],
     plyr: null,
-    hls: null
+    hls: null,
+    // Monotonic token: async continuations compare it and bail when a newer
+    // selection was made, so a slow older response can never overwrite it.
+    switchToken: 0
   };
 
   var tryServers = function (servers) {
-    return new Promise(function (resolve) {
-      var failures = 0;
-      var settled = false;
-      servers.forEach(function (server) {
-        fetchServer(server, state.seed, params).then(function (result) {
-          if (!settled) { settled = true; resolve(result); }
-        }).catch(function () {
-          failures++;
-          if (failures === servers.length && !settled) { settled = true; resolve(null); }
+    // Seeds expire (~30 s TTL); every attempt races a fresh seed so a later
+    // language switch can never ride a stale one into guaranteed failure.
+    return getSeed(config.tmdbId).then(function (freshSeed) {
+      state.seed = freshSeed;
+      return new Promise(function (resolve) {
+        var failures = 0;
+        var settled = false;
+        servers.forEach(function (server) {
+          fetchServer(server, state.seed, params).then(function (result) {
+            if (!settled) { settled = true; resolve(result); }
+          }).catch(function () {
+            failures++;
+            if (failures === servers.length && !settled) { settled = true; resolve(null); }
+          });
         });
       });
     });
@@ -316,9 +342,7 @@ const buildVidyPlayerScript = (options: {
     .then(function (seed) {
       state.seed = seed;
       // Try the original-language server group first.
-      return tryServers(LANGUAGE_GROUPS[0].servers).then(function (result) {
-        return result;
-      });
+      return tryServers(LANGUAGE_GROUPS[0].servers);
     })
     .then(function (result) {
       if (!result) { fail('This title is not available on any Vidy server.'); return; }
@@ -388,7 +412,9 @@ const buildVidyPlayerScript = (options: {
       .catch(function () { post({ type: 'downloadSource', url: best.url, captions: captions }); });
   };
 
-  var loadResult = function (result) {
+  var loadResult = function (result, resumeAt) {
+    var token = ++state.switchToken;
+    var at = typeof resumeAt === 'number' ? resumeAt : 0;
     state.result = result;
     state.sourceList = result.sources
       .filter(function (s) { return s && s.url; })
@@ -399,8 +425,9 @@ const buildVidyPlayerScript = (options: {
 
     reportDownloadSource(result);
     fetchCaptions(result.subtitles || []).then(function (tracks) {
+      if (token !== state.switchToken) return; // superseded mid-flight
       state.pendingTracks = tracks;
-      loadStream(state.sourceList[0].url);
+      loadStream(state.sourceList[0].url, at);
     });
   };
 
@@ -409,6 +436,10 @@ const buildVidyPlayerScript = (options: {
     var wasPlaying = !video.paused && !video.ended && video.readyState > 0;
 
     if (state.hls) { try { state.hls.destroy(); } catch (_) {} state.hls = null; }
+    // Previous captions belong to the previous source; drop them so a
+    // language switch can never show two languages' cues at once.
+    Array.prototype.slice.call(video.querySelectorAll('track')).forEach(function (t) { t.remove(); });
+    state.pendingTracks = [];
 
     if (window.Hls && window.Hls.isSupported()) {
       state.hls = new window.Hls({ enableWorker: true, backBufferLength: 90 });
@@ -461,18 +492,23 @@ const buildVidyPlayerScript = (options: {
     var group = null;
     LANGUAGE_GROUPS.forEach(function (g) { if (g.key === langKey) group = g; });
     if (!group) return;
+    var token = ++state.switchToken;
+    var fromLang = state.langKey;
+    var resumeAt = video.currentTime || 0;
     state.langKey = langKey;
+    renderLanguagePane();
     status('Switching audio...');
-    try { if (state.hls) state.hls.stopLoad(); } catch (_) {}
+    // Only destroy after a replacement resolves; a failed switch keeps playing.
     tryServers(group.servers).then(function (result) {
+      if (token !== state.switchToken) return; // superseded by a newer selection
       if (!result) {
-        status('');
-        fail('That audio language is not available for this title.');
+        state.langKey = fromLang;
+        renderLanguagePane();
+        notice('That audio language is not available for this title.');
         return;
       }
       status('');
-      loadResult(result);
-      renderLanguagePane();
+      loadResult(result, resumeAt);
     });
   };
 
