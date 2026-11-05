@@ -5,7 +5,7 @@
 **Yummy** is a personal media client (`v2.3.0`) that combines:
 
 1. TMDB discovery for movies, TV shows, people, cast, and recommendations.
-2. Configurable third-party streaming-provider embeds (`app/player.tsx`: WebView on native, `<iframe>` on web/Tauri) plus a native Catalog Service player (`components/CatalogPlayer.tsx`) that runs against a service domain the user supplies in Settings.
+2. Configurable third-party streaming-provider embeds (`app/player.tsx`: WebView on native, `<iframe>` on web/Tauri) plus two **native Plyr players**: the Catalog Service player (`components/CatalogPlayer.tsx`, user-supplied domain) and the Vidy player (`components/VidyPlayer.tsx`, reverse-engineered `www.vidy.st` protocol) — both resolve direct HLS + captions + qualities inside a WebView at the provider's origin. Direct-stream Custom URLs play through `components/DirectPlayer.tsx`.
 3. Public direct IPTV playback from IPTV-org and saved M3U playlists.
 4. Manga discovery and reading via MangaDex and AniList.
 
@@ -66,7 +66,7 @@ flowchart TD
 | `/iptv-player` | Direct Plyr IPTV playback | `channelName`, `streamUrl` |
 | `/manga-details` | Source-specific metadata and chapter selection | manga ID, source, display metadata |
 | `/manga-reader` | Page reader with zoom/pan and navigation | chapter ID/title, manga title, source |
-| `/player` | Third-party stream provider embed | `id`, `type`, `title`, `season?`, `episode?` — WebView native / iframe web; the Catalog Service provider routes to `components/CatalogPlayer.tsx` |
+| `/player` | Third-party stream playback | `id`, `type`, `title`, `season?`, `episode?` — provider `catalog` → `components/CatalogPlayer.tsx`, provider `vidy` → `components/VidyPlayer.tsx`, direct-stream Custom URL → `components/DirectPlayer.tsx`, remaining embeds → WebView native / iframe web |
 
 Root navigation is in `app/_layout.tsx`. It preloads the four Geist Mono weights, holds the splash until fonts resolve, wraps routes in `SettingsProvider` and `AlertProvider`, forces React Navigation's dark theme, and invokes `useVersionCheck()`.
 
@@ -118,7 +118,20 @@ Screens should call `useTMDB()` methods only — do not duplicate auth headers i
 
 Android has an opt-in **Use Cloudflare DNS for TMDB** row under Settings → General → Connection. `modules/yummy-tmdb-dns/` is a local Expo module; its application lifecycle listener restores the flag from SharedPreferences before JS starts and installs an `OkHttpClientProvider` factory, covering fetch/axios and Fresco (`Image`). Only `api.themoviedb.org` and `image.tmdb.org` use DoH (`okhttp-dnsoverhttps:4.9.2`, Cloudflare's HTTPS endpoint bootstrapped to IPv4/IPv6 addresses, 6 s call timeout, 1 MiB HTTP cache); unavailable/empty DoH results fall back to device DNS. Normal TLS/hostname verification and the React cookie-jar container remain intact. `utils/tmdbDns.ts` exposes an optional module bridge; `useSettings()` owns the UI state and setter. Toggling evicts idle pooled connections and reloads Home discovery; it does not change Android Private DNS. Other platforms and Expo Go retain normal networking. Native unit tests: `./gradlew :yummy-tmdb-dns:testReleaseUnitTest` from `android/` (seven cases, no credentials/network); a live JVM check also reached the API and fetched a poster with system DNS deliberately unavailable.
 
-Provider-filtered popularity uses the `IN` region. Curated provider IDs/logos live in `constants/providers.ts`. Embed providers live in `constants/streamProviders.ts` (real names + hostnames; no alias nicknames). Playback requires accepting the third-party stream disclaimer (`constants/streamDisclaimer.ts`, gated via `utils/streamPlaybackGate.ts`) and selecting a provider in Settings — there is no silent default embed.
+Provider-filtered popularity uses the `IN` region. Curated provider IDs/logos live in `constants/providers.ts`. Embed providers live in `constants/streamProviders.ts` (real names + hostnames; no alias nicknames) — **Vidy** (`id: 'vidy'`, `https://www.vidy.st`) is a named provider with native Plyr playback; the dead sources **VidSrc (`vidsrc-embed.ru`), VidSrc.sbs, VidPlus, and all three RiveStream variants** were removed after on-device verification (DNS-dead, connection-refused, or Cloudflare-walled). Playback requires accepting the third-party stream disclaimer (`constants/streamDisclaimer.ts`, gated via `utils/streamPlaybackGate.ts`) and selecting a provider in Settings — there is no silent default embed.
+
+### Vidy (native Plyr player provider)
+
+`components/VidyPlayer.tsx` plays `www.vidy.st` titles natively by replicating the site's own client protocol inside a WebView loaded at `https://www.vidy.st/` (the real-origin page is required: the CDN and API reject requests without the vidy.st Referer). The protocol, ported verbatim from the site's webpack bundle:
+
+- Metadata: `https://db.wecollege.net/3` — a TMDB v3 API proxy (`/movie/{id}`, `/tv/{id}`, `/search`).
+- Seed: `GET https://api.wecollege.net/seed?mediaId={tmdbId}` → `{seed, ttlMs:30000}`. Cloudflare-fronted: requires a browser UA and the `https://www.vidy.st/` Referer from datacenter IPs; plain curl gets 403.
+- Sources: `GET https://api.wecollege.net/{server}/sources?title=&mediaType=&seasonId=&episodeId=&tmdbId=&enc=2&seed={seed}` returns a **base64url XOR-encrypted payload**; decrypt with the site's keystream (RC4-style state for odd-length seeds, a 61-slot FNV-mixed state otherwise; magic header `[109,118,109,49]` = `"mvm1"`) → JSON `{sources:[{quality,url}], subtitles:[{lang,language,url,type}], thumbnail?}`. Both API and stream CDNs send `Access-Control-Allow-Origin: *`.
+- 18 city servers: `miami, boise, nashville, chicago, vegas, reno, oakland, seattle, phoenix, atlanta, portland, austin, dallas, munich, berlin, paris, delhi, cancun`. Audio language is **server-based, not in-manifest**: miami-family = original, munich/berlin = German, paris = French, delhi = Hindi, cancun = Spanish. Verified: zero `#EXT-X-MEDIA TYPE=AUDIO` renditions; every stream's init segment carries exactly 1 audio + 1 video trak (audio is muxed). Crop miami/boise return 4 separate per-quality playlists (2160/1080/720/480) plus a sibling `master.m3u8` ladder; no server ships in-manifest multi-audio.
+- The player injects: seed fetch → parallel server race → decrypt → sort sources by quality rank → Plyr + hls.js with **Audio language** (server groups) and **Quality** panes injected into Plyr's settings menu, captions pre-fetched and attached as data-URL `<track>` elements **after** the manifest parses (attaching before a media source is live wipes track cues). Reports a `downloadSource` message (`…/master.m3u8` preferred, single playlist fallback) with captions, consumed by `app/player.tsx` for the Android download sheet (id prefix `vidy_`, referer `https://www.vidy.st/`).
+- On web/Tauri Vidy shows a native-playback-required state, same as Catalog Service.
+
+**Startup fix (2026-11-05):** the original script only called `play()` when resuming (after a previous play), so every title sat buffered at `readyState 4` paused at 00:00 until the 40 s timeout showed "Stream unavailable". The first manifest load now calls `markStarted()` (posts `ready` + `play()`); later reloads (quality/language switch) still preserve position and paused state. Verified on-device: Fight Club and Swapped auto-play from cold start and advance in real time; 1,166 English caption cues load for GoT.
 
 ### Catalog Service (native player provider)
 
@@ -135,7 +148,7 @@ Do not log Catalog Service session tokens; the session is device-local AsyncStor
 
 ### Android offline downloads
 
-`modules/yummy-downloads/` is an autolinked local Expo module using Media3 1.8.0. CatalogPlayer hands its resolved HLS/caption URLs to `app/player.tsx`; `components/DownloadSheet.tsx` asks the native manifest inspector for available quality/audio/caption choices. Native short-lived preparation tokens validate track indices and generate one variant + compatible audio + optional subtitle stream keys. External SRT/VTT uses a paired progressive download. Video completion requires the sidecar too. Stream URIs may contain tokens and must never be logged or returned in JS library snapshots.
+`modules/yummy-downloads/` is an autolinked local Expo module using Media3 1.8.0. CatalogPlayer and VidyPlayer hand their resolved HLS/caption URLs to `app/player.tsx`; `components/DownloadSheet.tsx` asks the native manifest inspector for available quality/audio/caption choices. Native short-lived preparation tokens validate track indices and generate one variant + compatible audio + optional subtitle stream keys. External SRT/VTT uses a paired progressive download. Video completion requires the sidecar too. Stream URIs may contain tokens and must never be logged or returned in JS library snapshots. The download id prefix (`catalog_` / `vidy_`) and referer (`{catalogDomain}/` / `https://www.vidy.st/`) are provider-derived in `app/player.tsx`.
 
 Media3 owns its private SQLite index and non-evicting media cache (`filesDir/offline-videos`); this is a native-media exception to AsyncStorage-only app state. `YummyDownloadService` runs foreground downloads with network requirements and persistent pause/resume/remove controls. `app/downloads.tsx` (More → Downloads, Android) polls while focused; `app/download-player.tsx` uses `OfflineVideoView` with no HTTP upstream, so completed videos and selected captions play from cache. Removal deletes both video and sidecar. Only finite HLS from Catalog Service is supported initially. Device tests use an isolated test app and public Shaka media: `./gradlew :yummy-downloads:connectedReleaseAndroidTest`.
 
@@ -172,6 +185,8 @@ Source selection lives in `app/(tabs)/manga.tsx`. `manga-details.tsx` fetches so
 - `ProviderChips` — TMDB watch-provider filter on Home.
 - `SeasonsList` — lazy season episodes with pagination.
 - `CatalogPlayer` — native Catalog Service playback (WebView at the user's domain origin + hls.js; activation-gated).
+- `VidyPlayer` — native Vidy playback (WebView at vidy.st origin + hls.js + Plyr; reverse-engineered encrypted sources API; language/quality panes; captions as data-URL tracks).
+- `DirectPlayer` — Plyr playback for Custom URLs that are themselves direct media links (`.m3u8`/`.mp4`/`.mpd`/`.webm`), via the shared `utils/plyrPlayerHtml.ts` builder (also used by `app/iptv-player.tsx`).
 - `AppAlert` — all confirmations and success/error dialogs.
 - `UpdateAlert` — GitHub release prompt (same visual language as `AppAlert`).
 
@@ -339,3 +354,49 @@ Push/tag `v2.3.0` on GitHub (user's `github` branch) so the in-app update checke
 - Whether a "downloads storage cap / cleanup" setting is wanted once libraries grow.
 
 
+
+## Session — 2026-11-05: Vidy provider (native Plyr), provider cleanup, release build
+
+### What was built
+
+- **Vidy provider added** (`constants/streamProviders.ts`): `id: 'vidy'`, `https://www.vidy.st/movie/{id}` and `/tv/{id}/{s}/{e}`. Dead providers **removed after on-device verification**: vidsrc (`vidsrc-embed.ru`, connection refused), vidsrc-sbs (DNS dead), vidplus (Cloudflare 403/521), and rivestream + rivestream-torrent + rivestream-agg (`rivestream.net`, DNS dead). Remaining list: Catalog Service, Videasy, Vidy, VidNest, 2Embed, VidLink, VidSrc.to, Custom URL.
+- **`components/VidyPlayer.tsx`** (new): native Plyr + hls.js player for Vidy, replicating the site's encrypted API inside a WebView at the real vidy.st origin (Referer requirement). Full reverse-engineered protocol documented in the Vidy section above (seed → 18-city server race → XOR decrypt → sources/subtitles). Plyr settings menu gains **Audio language** (server groups: original/German/French/Hindi/Spanish) and **Quality** panes; captions pre-fetched and attached as data-URL tracks after manifest parse; posts `downloadSource` (prefers sibling `master.m3u8`) for the Android download sheet.
+- **`components/DirectPlayer.tsx` + `utils/plyrPlayerHtml.ts`** (new): Custom URLs that are direct media links (`.m3u8`/`.mpd`/`.mp4`/`.m4v`/`.webm`) now play through Plyr instead of being treated as embed bases; `app/iptv-player.tsx` refactored to share the one Plyr HTML builder (no duplication).
+- **`app/player.tsx`**: Vidy branch routes to `VidyPlayer` (`onDownloadSource={setDownloadSource}`); download button + DownloadSheet enabled for `isCatalog || isVidy`; offline download id prefix became provider-derived (`vidy_`/`catalog_`) and referer `https://www.vidy.st/` for Vidy.
+- **Startup playback fix** in the Vidy script (details in the Vidy section above) — the first manifest load never called `play()` before this.
+- Release APKs rebuilt (v2.3.0, versionCode 4) and the arm64 build installed on the connected phone; all five APKs re-verified (signature, 16 KB zip alignment, ABIs), including a final check that no WebView-debugging flag is assigned in the shipped bundle.
+
+### Decisions made
+
+- **Vidy is a named provider with native Plyr playback**, not an iframe embed — the user chose this ("Vidy + Custom via Plyr"); other opaque embeds (Videasy, VidNest, 2Embed, VidLink, VidSrc.to) deliberately stay WebView embeds because their direct streams cannot be extracted without per-site reverse engineering.
+- **Stale provider ids are dropped automatically at load** — `SettingsContext` already removed saved ids missing from `STREAM_PROVIDERS`, so deleting dead providers needs no migration.
+- **WebView must load a real vidy.st page** for the Referer the API/CDN demand; `source={{ html }}` with `baseUrl` was rejected as unreliable for Referer. Same pattern CatalogPlayer uses.
+- **expo-video migration was evaluated and rejected by the user** — it would not work in the Tauri desktop shell; Plyr (WebView/iframe, hls.js) stays the one player stack across native and web.
+- **Custom-URL direct streams** now bypass the `/movie/{id}` path suffix — detection is `streamProvider === 'custom' && /\.(m3u8|mpd|mp4|m4v|webm)([?#]|$)/`.
+- **Commit history**: the previous local commit `1ea4c35` ("Release v2.3.0: …") was amended to "Add service-agnostic catalog, settings redesign, TMDB DNS toggle, and offline downloads" so the *Vidy/provider* work can be the "Release v2.3.0" commit. `275aaee` is that reworded commit; nothing has been pushed (origin/github was 2 ahead before the reword). This Vidy session's changes are **still uncommitted** pending this save.
+
+### Problems solved
+
+- **Every Vidy title stalled at 00:00 → "Stream unavailable"**: the injected script only called `play()` for *resume* paths, never for the first manifest load, and `ready` only fired on the `playing` event — so playback never began and the 40 s timeout surfaced. Diagnosed on-device via a temporary `webviewDebuggingEnabled` build + CDP (`readyState 4, paused: true, time 0`; manual `video.play()` worked). Fixed by calling `markStarted()` on first manifest parse (both hls.js and native-HLS paths); verified Fight Club and Swapped auto-play and advance (02:29 → 03:46) in the clean installed build; caption cues (1,166 English on GoT) load.
+- **Vidy API 403s from datacenter IPs** are Cloudflare UA/Referer checks, not geo-blocks: same curl passes with a mobile browser UA + `Referer: https://www.vidy.st/`. Test scripts must send both.
+- **Plyr missing in early page-swap attempts**: the injected script must load `plyr.polyfilled.js` itself (the vidy.st page does not reliably carry it) before constructing the player; hls.js loads first, both via a `data-ym-loaded`-tagged loader.
+- **Captions silently empty if attached before the source is live** — `<track>` elements must be appended only after `MANIFEST_PARSED`/`loadedmetadata` (hls.js resets the element); pre-fetch text, attach after.
+- **On-device WebView debugging**: enable `webviewDebuggingEnabled` in a scratch build, `adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>`, then drive `/json/list` + the page's `webSocketDebuggerUrl` over `ws` (script at `/tmp/opencode/device-vidy-check.cjs`). uiautomator text dumps read Plyr's aria-labels ("03:05 of 1:41:45, Seek") to confirm advancing playback without screenshots.
+- **APK "webviewDebuggingEnabled" grep false positive**: RN WebView's prop name always appears in the minified bundle's string table; assert on assignments (`webviewDebuggingEnabled[:=](!0|true)`) to prove a clean build.
+
+### Current state
+
+- Vidy playback **verified on the connected phone** (b00c6d41, M2101K7AI): auto-start, advancing time, quality pane (2160p/1080p/720p/480p), language pane, captions. Regression harness (transpiled-template VM run) covers first-play-start and position/pause preservation on quality switch.
+- Provider list cleaned; tsc + lint clean; all five signed release APKs rebuilt; arm64 installed and playing.
+- **Uncommitted**: `components/VidyPlayer.tsx` (new), `components/DirectPlayer.tsx` (new), `utils/plyrPlayerHtml.ts` (new), `app/player.tsx`, `app/iptv-player.tsx`, `constants/streamProviders.ts`, plus this MEMORY.md update. Note: `constants/streamProviders.ts` was already staged with the provider swap; the VidyPlayer fix is an unstaged delta on top of a staged new file.
+- Known-open VidyPlayer defects (from the review, deliberately not yet fixed): seed reuse on language switch (30 s TTL can expire; should refetch per switch), no request-ordering guard (a slow older server response can overwrite a newer language selection), language switch resets playback position and retains stale caption tracks, and the download source isn't cleared when the player errors (stale Download button).
+
+### Next session starts with
+
+Commit is prepared but **not made**: stage `app/iptv-player.tsx`, `app/player.tsx`, `components/DirectPlayer.tsx`, `components/VidyPlayer.tsx`, `constants/streamProviders.ts`, `utils/plyrPlayerHtml.ts`, `MEMORY.md` and commit as `Release v2.3.0: Vidy native player, provider cleanup, download sources` (or the user's preferred wording), then optionally fix the four open VidyPlayer defects above. Do not re-run `expo prebuild` unless the android directory changes.
+
+### Open questions
+
+- Message wording for the release commit (user asked the "Release v2.3.0" label move onto this work).
+- Whether to push/tag `v2.3.0` on GitHub after committing.
+- Whether the four open VidyPlayer switching-state defects should be fixed before the push.

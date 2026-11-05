@@ -42,8 +42,10 @@ Desktop (Win / Linux / macOS) uses Tauri 2 wrapping the Expo web export. Require
 | `app/` | Expo Router screens and navigation layouts |
 | `app/(tabs)/` | Home, search, manga, and IPTV tabs |
 | `app/details.tsx`, `app/person.tsx` | TMDB detail screens |
-| `app/player.tsx` | Third-party streaming-provider player (embed WebView, or the native Catalog Service player) |
+| `app/player.tsx` | Third-party streaming-provider player: embed WebView for opaque sources, or native Plyr players for Catalog Service (`CatalogPlayer`), Vidy (`VidyPlayer`), and direct-media custom URLs (`DirectPlayer`) |
 | `components/CatalogPlayer.tsx` | Native Catalog Service playback: user-domain-origin WebView + hls.js + subtitles |
+| `components/VidyPlayer.tsx` | Native Vidy playback: vidy.st-origin WebView + reverse-engineered encrypted sources API + Plyr language/quality panes |
+| `components/DirectPlayer.tsx`, `utils/plyrPlayerHtml.ts` | Plyr playback for direct-media Custom URLs; shared Plyr + hls.js HTML builder (also used by the IPTV player) |
 | `hooks/useCatalog.ts` | Catalog Service API client: activation, search, details, episodes, stream resolution (built from the user's saved domain) |
 | `constants/catalog.ts` | Catalog Service endpoints, types, storage keys (service-agnostic; no hardcoded host or domain pool) |
 | `app/iptv-player.tsx` | Direct IPTV stream playback through Plyr |

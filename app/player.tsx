@@ -1,7 +1,9 @@
 import { Colors } from '@/constants/colors';
 import { Fonts } from '@/constants/fonts';
 import { CatalogPlayer } from '@/components/CatalogPlayer';
+import { DirectPlayer } from '@/components/DirectPlayer';
 import { DownloadSheet } from '@/components/DownloadSheet';
+import { VidyPlayer } from '@/components/VidyPlayer';
 import {
   PLAYER_AD_BLOCK_BEFORE_JS,
   PLAYER_AD_BLOCK_JS,
@@ -89,18 +91,28 @@ export default function PlayerScreen() {
   };
 
   const isCatalog = streamProvider === CATALOG_PROVIDER_ID;
+  const isVidy = streamProvider === 'vidy';
+
+  // A custom URL that points straight at a media file is played with Plyr
+  // instead of being treated as an embed base and having paths appended.
+  const isDirectStream = useMemo(
+    () =>
+      streamProvider === 'custom' &&
+      /\.(m3u8|mpd|mp4|m4v|webm)(?:[?#]|$)/i.test(streamUrl.trim()),
+    [streamProvider, streamUrl]
+  );
   const offlineSource = useMemo(() => downloadSource ? {
     ...downloadSource,
-    id: `catalog_${id}_${type}_${season}_${episode}`.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 120),
+    id: `${isVidy ? 'vidy' : 'catalog'}_${id}_${type}_${season}_${episode}`.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 120),
     title: type === 'tv' ? `${title} · S${season} E${episode}` : title,
-    referer: `${catalogDomain}/`,
+    referer: isVidy ? 'https://www.vidy.st/' : `${catalogDomain}/`,
     posterUrl: params.posterPath ? `https://image.tmdb.org/t/p/w342${params.posterPath}` : undefined,
     tmdbId: Number(id),
     mediaType: type,
     showTitle: type === 'tv' ? title : undefined,
     season: type === 'tv' ? Number(season) : undefined,
     episode: type === 'tv' ? Number(episode) : undefined,
-  } : null, [downloadSource, id, type, season, episode, title, catalogDomain, params.posterPath]);
+  } : null, [downloadSource, id, type, season, episode, title, catalogDomain, params.posterPath, isVidy]);
 
   const handleClose = () => {
     router.back();
@@ -176,6 +188,17 @@ export default function PlayerScreen() {
           tmdbId={Number(id)}
           onDownloadSource={setDownloadSource}
         />
+      ) : isVidy ? (
+        <VidyPlayer
+          title={title}
+          type={type}
+          season={season}
+          episode={episode}
+          tmdbId={Number(id)}
+          onDownloadSource={setDownloadSource}
+        />
+      ) : isDirectStream ? (
+        <DirectPlayer streamUrl={streamUrl.trim()} title={title} />
       ) : isWeb
         ? createElement('iframe', {
             src: streamLink,
@@ -224,7 +247,7 @@ export default function PlayerScreen() {
               </Text>
             ) : null}
           </View>
-          {isCatalog && downloadsAvailable && downloadSource ? (
+          {(isCatalog || isVidy) && downloadsAvailable && downloadSource ? (
             <TouchableOpacity style={styles.closeButton} onPress={() => setDownloadOpen(true)} activeOpacity={0.85}
               accessibilityRole="button" accessibilityLabel="Download video">
               <Download size={20} color={Colors.text} />
@@ -238,7 +261,7 @@ export default function PlayerScreen() {
           accessibilityLabel="Show player controls"
         />
       )}
-      {downloadOpen && offlineSource && isCatalog ? (
+      {downloadOpen && offlineSource && (isCatalog || isVidy) ? (
         <DownloadSheet source={offlineSource} onClose={() => setDownloadOpen(false)} />
       ) : null}
     </View>
